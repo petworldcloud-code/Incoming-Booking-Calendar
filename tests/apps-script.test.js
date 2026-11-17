@@ -179,7 +179,7 @@ describe('Code.gs company helpers match the app', () => {
     expect(lib.mailText('Hi', b, 'tg')).toContain('Calendar: TG');
     expect(lib.mailText('Hi', { ...b, poNumber: 'PO-123' }, 'tg')).toContain('PO number: PO-123');
     expect(lib.mailText('Hi', b, 'tg')).not.toContain('PO number');
-    expect(lib.mailText('Hi', b, 'tg')).toContain('Dynamic-Booking-Calendar/#tg');
+    expect(lib.mailText('Hi', b, 'tg')).toContain('Incoming-Booking-Calendar/#tg');
   });
 });
 

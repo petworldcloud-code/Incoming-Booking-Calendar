@@ -22,7 +22,7 @@
  */
 
 var PROJECT_ID = 'dynamic-booking-calendar';
-var APP_URL = 'https://petworldcloud-code.github.io/Dynamic-Booking-Calendar/';
+var APP_URL = 'https://petworldcloud-code.github.io/Incoming-Booking-Calendar/';
 var TZ = 'Asia/Kuala_Lumpur';
 var UTC_OFFSET = '+08:00'; // Malaysia has no daylight saving
 var SENDER_NAME = 'Incoming Booking Calendar';

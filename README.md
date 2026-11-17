@@ -4,8 +4,8 @@ A shared **lorry booking calendar** with **several separate calendars** (DIM, TG
 
 > **Multi-calendar status (2026-11-11):** the code is built and deployed, but the live site stays in its old single-calendar mode until the go-live steps in **7.9** are done. Until then the app finds no calendars and behaves exactly as before.
 
-- **Live site:** https://petworldcloud-code.github.io/Dynamic-Booking-Calendar/
-- **Source code:** https://github.com/petworldcloud-code/Dynamic-Booking-Calendar (public repository)
+- **Live site:** https://petworldcloud-code.github.io/Incoming-Booking-Calendar/
+- **Source code:** https://github.com/petworldcloud-code/Incoming-Booking-Calendar (public repository)
 - **Local folder (original developer's PC):** `D:\Rie\Claude\DIM Calendar Booking`
 
 > This README is the handover document. If you are picking this project up from someone else, read sections 1-4 first, then use section 7 (day-to-day tasks) and section 10 (troubleshooting).
@@ -64,7 +64,7 @@ No PHP, no MySQL, no always-on server, no paid services.
 
 | Thing | Account / owner | Used for |
 |---|---|---|
-| **GitHub organisation** | `petworldcloud-code` | Owns the repository `Dynamic-Booking-Calendar` and GitHub Pages. |
+| **GitHub organisation** | `petworldcloud-code` | Owns the repository `Incoming-Booking-Calendar` and GitHub Pages. |
 | **GitHub user used to push code** | `Riekie3` (collaborator with write access) | `git push` / `gh` CLI from the developer's PC. |
 | **Google account that owns Firebase** | `petworldcloud@gmail.com` | Owns Firebase project `dynamic-booking-calendar` (Spark / free plan). Sign in to https://console.firebase.google.com with this account (it may appear as `/u/2/` if several Google accounts are logged in). |
 | **Firebase project** | ID `dynamic-booking-calendar`, number `356655258614`, web app "Dynamic Booking Calendar Web" | Auth + Firestore. Database location **asia-southeast1 (Singapore)** - cannot be changed. |
@@ -125,7 +125,7 @@ scripts/cleanup.js          Optional old-booking cleanup (all calendars, one glo
 scripts/make-final-rules.mjs  Builds firestore.rules.final from firestore.rules
 tests/                      unit tests (npm test) + rules.test.js, rules-calendars.test.js (need Java)
 .github/workflows/          deploy.yml, cleanup-expired-bookings.yml
-vite.config.js              base path = /Dynamic-Booking-Calendar/ (GitHub Pages sub-path)
+vite.config.js              base path = /Incoming-Booking-Calendar/ (GitHub Pages sub-path)
 .env.example                Template for the Firebase web config
 ```
 
@@ -300,7 +300,7 @@ The new app code is **already live** (every push deploys), waiting in old mode: 
 7. **Index** (needed or the calendar will not load): Firestore -> Indexes -> collection `bookings`, fields `bookingDate` Ascending + `createdAt` Ascending, scope Collection. **And a second one with both fields Descending** (the History tab needs it; without it History says "The query requires an index"). Status must show **Enabled** for both. (Or `firebase deploy --only firestore:indexes`.) Status must show **Enabled**.
 
 ### 8.2 GitHub (one-time; already done)
-1. Repository `petworldcloud-code/Dynamic-Booking-Calendar`.
+1. Repository `petworldcloud-code/Incoming-Booking-Calendar`.
 2. **Settings -> Pages -> Source: GitHub Actions**.
 3. **Settings -> Secrets and variables -> Actions -> Variables** (not Secrets), add:
    `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_FIREBASE_MESSAGING_SENDER_ID`, `VITE_FIREBASE_APP_ID`
@@ -309,8 +309,8 @@ The new app code is **already live** (every push deploys), waiting in old mode: 
 
 ### 8.3 Local development on a PC
 ```bash
-git clone https://github.com/petworldcloud-code/Dynamic-Booking-Calendar.git
-cd Dynamic-Booking-Calendar
+git clone https://github.com/petworldcloud-code/Incoming-Booking-Calendar.git
+cd Incoming-Booking-Calendar
 npm install
 copy .env.example .env      # Windows (use cp on Mac/Linux); fill in the six Firebase values
 npm run dev                 # http://localhost:5173
