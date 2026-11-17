@@ -109,6 +109,13 @@ function suite(label, rulesFile, { legacyOpen }) {
         const noCompany = booking('tina'); delete noCompany.companyId;
         await assertFails(setDoc(doc(ctx('tina'), B('tg', 'c5')), noCompany));
       });
+      it('PO number is optional text up to 60 characters', async () => {
+        await assertSucceeds(setDoc(doc(ctx('tina'), B('tg', 'p1')), booking('tina', { poNumber: 'PO-2026-00123' })));
+        await assertSucceeds(setDoc(doc(ctx('tina'), B('tg', 'p2')), booking('tina')));
+        await assertFails(setDoc(doc(ctx('tina'), B('tg', 'p3')), booking('tina', { poNumber: 'P'.repeat(61) })));
+        await assertFails(setDoc(doc(ctx('tina'), B('tg', 'p4')), booking('tina', { poNumber: 123 })));
+        await assertSucceeds(updateDoc(doc(ctx('tina'), B('tg', 'b1')), upd('tina', { poNumber: 'PO-77' })));
+      });
       it('a new booking needs at least one attachment', async () => {
         const none = booking('tina'); delete none.attachments;
         await assertFails(setDoc(doc(ctx('tina'), B('tg', 'a1')), none));

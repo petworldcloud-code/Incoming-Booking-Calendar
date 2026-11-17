@@ -28,6 +28,8 @@ Screen layout: header (today, calendar range, legend, user menu); **left** = boo
 Key behaviours:
 - **Calendar** = 31 consecutive days starting **today in Malaysia time (Asia/Kuala_Lumpur)**. It rolls forward automatically at Malaysian midnight. Prev/Next move by 31 days; **Today** returns to the live range. If the first day is mid-week, earlier cells in that row are blank.
 - **One date per booking** (not a date range).
+- **PO number** (optional text, max 60 characters) can be entered on every booking; it shows on the calendar label, the table, the details pop-up and the emails.
+- **At least one attachment is required** on a new booking (and the form asks for one when editing). Click a booking on the calendar to open its details; click an attachment there to open it (pictures and PDFs open in a new tab, other files download).
 - Each day shows up to **6** company labels, then `+N more bookings`, which opens the day list. Nothing is hidden or dropped.
 - **Click a company name** (calendar, table or day list) to open a pop-up with the date, truck type, number of lorries, notes and attachments. Edit/Delete buttons appear only if you own the booking or are an admin.
 - **Live sync:** when anyone adds/changes a booking, everyone else sees it within seconds, no refresh.
@@ -149,7 +151,7 @@ The table below is the **old single-calendar layout** (still used until go-live,
 |---|---|---|
 | `users` | Firebase Auth UID | `displayName` (= **company name**), `username`, `email` (auth email), `role` (`admin`/`user`), `status` (`active`/`pending`/`suspended`), `createdAt`, `updatedAt` |
 | `usernames` | the username (lowercase) | `email` (the auth email to sign in with), `uid`. Readable **one document at a time by anyone** (needed before login); listing is blocked. |
-| `bookings` | auto ID | `bookingDate` (`YYYY-MM-DD`), `eventName` (= **company name**), `deliveryType` (`Delivery stock`/`Container pull`/`Unloading`; absent on old bookings), `vehicleType` (`Van`/`Truck`; absent on bookings made before it existed, which count as Truck), `truckType` (only for trucks), `truckCount` (1-6), `palletized` (true/false; absent on old bookings), `plateNumber` (optional text, several allowed), `timeSlot` (optional, `"08:00-10:00"`), `notes`, `attachments` (list of `{id,name,type,size}`), `createdBy`, `createdByName`, `createdAt`, `updatedBy`, `updatedByName`, `updatedAt` |
+| `bookings` | auto ID | `bookingDate` (`YYYY-MM-DD`), `eventName` (= **company name**), `poNumber` (optional text, max 60), `deliveryType` (`Delivery stock`/`Container pull`/`Unloading`; absent on old bookings), `vehicleType` (`Van`/`Truck`; absent on bookings made before it existed, which count as Truck), `truckType` (only for trucks), `truckCount` (1-6), `palletized` (true/false; absent on old bookings), `plateNumber` (optional text, several allowed), `timeSlot` (optional, `"08:00-10:00"`), `notes`, `attachments` (list of `{id,name,type,size}`), `createdBy`, `createdByName`, `createdAt`, `updatedBy`, `updatedByName`, `updatedAt` |
 | `bookings/{id}/attachments` | random ID | `name`, `type`, `size`, `data` (base64 file), `createdBy`, `createdAt` |
 | `settings` | `retention` | `autoDeleteEnabled` (false by default), `retentionDays`, `updatedAt`, `updatedBy` |
 | `blockedDates` | the date `YYYY-MM-DD` | `reason` (text, max 80), `createdBy`, `createdAt`. A document existing = that date is closed to all new bookings. Admin writes, active users read. |

@@ -331,6 +331,7 @@ const bookingInfo = (b) => [
   b.deliveryType || null,
   vehicleText(b) ? `${vehicleText(b)} × ${b.truckCount}` : null,
   palletText(b) || null,
+  b.poNumber ? `PO ${b.poNumber}` : null,
   b.plateNumber ? `🚚 ${b.plateNumber}` : null,
   b.attachments?.length ? `📎 ${b.attachments.length}` : null
 ].filter(Boolean).join(' · ');
@@ -441,6 +442,7 @@ function openView(b) {
   const unit = vehicle === 'Van' ? ['van', 'vans'] : ['lorry', 'lorries'];
   $('v-count').textContent = b.truckCount ? `${b.truckCount} ${b.truckCount === 1 ? unit[0] : unit[1]}` : '—';
   $('v-pallet').textContent = palletText(b) || '—';
+  $('v-po').textContent = b.poNumber || '—';
   $('v-plate').textContent = b.plateNumber || '—';
   $('v-notes').textContent = b.notes || '—';
   const files = b.attachments || [];
@@ -450,6 +452,7 @@ function openView(b) {
     if (isImg) loadThumb(b.id, a, thumb);
     return h('li', {}, thumb, h('button', { type: 'button', class: 'link nm', onclick: () => openAttachment(b.id, a) }, `${a.name} (${formatSize(a.size)})`));
   }) : [h('li', { class: 'muted' }, 'None')]));
+  $('v-att-hint').hidden = !files.length;
   $('v-meta').textContent = `Booked by ${b.createdByName}. Last changed by ${b.updatedByName}.`;
   $('v-edit').hidden = $('v-delete').hidden = !canEdit(b);
   if ($('dlg-day').open) $('dlg-day').close();
@@ -476,10 +479,11 @@ function openBookingDialog(b, presetDate) {
   $('b-count').value = editing && b.truckCount ? String(b.truckCount) : '';
   $('b-pallet').value = editing && typeof b.palletized === 'boolean' ? (b.palletized ? 'yes' : 'no') : '';
   $('b-plate').value = editing ? (b.plateNumber || '') : '';
+  $('b-po').value = editing ? (b.poNumber || '') : '';
   state.files = { bookingId: editing ? b.id : null, existing: editing ? [...(b.attachments || [])] : [], remove: [], add: [] };
   $('b-files').value = '';
   const ro = editing && !canEdit(b);
-  ['b-date', 'b-slot', 'b-company', 'b-notes', 'b-delivery', 'b-vehicle', 'b-truck', 'b-count', 'b-pallet', 'b-plate', 'b-files'].forEach((id) => { $(id).disabled = ro; });
+  ['b-date', 'b-slot', 'b-company', 'b-notes', 'b-delivery', 'b-vehicle', 'b-truck', 'b-count', 'b-pallet', 'b-plate', 'b-po', 'b-files'].forEach((id) => { $(id).disabled = ro; });
   // Standard users: company is fixed to their own and shown as plain text, not a choice.
   const pickCompany = isAdmin() || state.multi; // in a calendar everyone chooses from its company list
   $('b-company').hidden = !pickCompany;
@@ -571,6 +575,7 @@ async function saveBooking(e) {
   };
   const f = {
     bookingDate: $('b-date').value, ...companyFields(), notes: $('b-notes').value.trim(),
+    poNumber: $('b-po').value.trim().replace(/\s+/g, ' '),
     truckCount: raw.truckCount, ...vehicleFields(raw),
     timeSlot: $('b-slot-label').hidden ? '' : $('b-slot').value
   };

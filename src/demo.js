@@ -48,6 +48,7 @@ const recipientsBy = { dim: new Map([['ops@example.com', { email: 'ops@example.c
 const recipientsOf = () => (recipientsBy[currentCal || 'dim'] ||= new Map()); // each calendar has its own list
 let notifySettings = { ...DEFAULT_NOTIFY };
 
+const attData = new Map(); // "bookingId/attId" -> the file picked in the demo
 const names = ['Tefal', 'Sony', '3M', 'GOON', 'Nestle', 'Unilever', 'Coca Cola', 'Watsons', 'Dove', 'Pepsi', 'Samsung', 'Lenovo'];
 function mk(dayOffset, eventName, n = 0, cal = 'dim') {
   seq += 1;
@@ -56,7 +57,7 @@ function mk(dayOffset, eventName, n = 0, cal = 'dim') {
     id: `d${String(seq).padStart(3, '0')}`, ...(companies[cal]?.find((c) => c.name === eventName) ? { companyId: companies[cal].find((c) => c.name === eventName).id } : {}), bookingDate: addDays(todayISO(), dayOffset), eventName, notes: '',
     ...(seq % 5 === 0 ? { vehicleType: 'Van' } : { vehicleType: 'Truck', truckType: ['40footer', '20footer', '10ton', '5ton', '3ton', '1ton'][seq % 6] }),
     deliveryType: ['Delivery stock', 'Container pull', 'Unloading'][seq % 3],
-    truckCount: (seq % 6) + 1, palletized: seq % 2 === 0, ...(seq % 3 === 0 ? { plateNumber: `WXY ${1000 + seq}` } : {}), attachments: [],
+    truckCount: (seq % 6) + 1, palletized: seq % 2 === 0, ...(seq % 3 === 0 ? { plateNumber: `WXY ${1000 + seq}` } : {}), ...(seq % 2 === 1 ? { poNumber: `PO-2026-${String(100 + seq).padStart(5, '0')}` } : {}), attachments: [],
     timeSlot: ['08:00-09:00', '09:00-10:00', '10:00-11:00', '11:00-12:00'][seq % 4],
     createdBy: me.uid, createdByName: me.displayName, updatedBy: me.uid, updatedByName: me.displayName,
     createdAt: { toMillis: () => 1000 + seq }, updatedAt: { toMillis: () => 1000 + seq + n }
@@ -123,15 +124,19 @@ export const api = {
     });
   },
   async createBooking(user, f, files = []) {
-    seq += 1; rows.push({ ...mk(0, f.eventName, 0, currentCal || 'dim'), ...f, attachments: files.map(({ id, name, type, size }) => ({ id, name, type, size })), id: `d${seq}x` }); notify();
+    seq += 1; const id = `d${seq}x`;
+    files.forEach((a) => attData.set(`${id}/${a.id}`, a));
+    rows.push({ ...mk(0, f.eventName, 0, currentCal || 'dim'), ...f, attachments: files.map(({ id, name, type, size }) => ({ id, name, type, size })), id }); notify();
   },
-  getAttachment: async () => null,
-  async updateBooking(user, id, expected, f) {
+  async getAttachment(bookingId, attId) { return attData.get(`${bookingId}/${attId}`) || null; },
+  async updateBooking(user, id, expected, f, { add = [], remove = [] } = {}) {
     const r = rows.find((x) => x.id === id);
     if (!r) throw Object.assign(new Error('This booking no longer exists.'), { code: 'gone' });
     if (r.updatedAt.toMillis() !== expected) throw Object.assign(new Error('Someone else changed this booking.'), { code: 'conflict' });
-    for (const k of ['truckType', 'plateNumber', 'timeSlot', 'deliveryType']) delete r[k]; // optional fields cleared when empty, as in Firestore
-    seq += 1; Object.assign(r, f, { updatedAt: { toMillis: () => 5000 + seq } }); notify();
+    for (const k of ['truckType', 'plateNumber', 'poNumber', 'timeSlot', 'deliveryType']) delete r[k]; // optional fields cleared when empty, as in Firestore
+    add.forEach((a) => attData.set(`${id}/${a.id}`, a));
+    const attachments = [...(r.attachments || []).filter((a) => !remove.includes(a.id)), ...add.map(({ id: aid, name, type, size }) => ({ id: aid, name, type, size }))];
+    seq += 1; Object.assign(r, f, { attachments, updatedAt: { toMillis: () => 5000 + seq } }); if (!f.poNumber) delete r.poNumber; notify();
   },
   async deleteBooking(b) { rows = rows.filter((r) => r.id !== b.id); notify(); },
   millis: (t) => (t && t.toMillis ? t.toMillis() : 0),

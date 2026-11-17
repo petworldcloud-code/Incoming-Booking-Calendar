@@ -111,6 +111,7 @@ function detailRows(b, cal) {
   var rows = [
     ['Calendar', cal ? String(cal).toUpperCase() : ''],
     ['Company', b.eventName],
+    ['PO number', b.poNumber],
     ['Date', b.bookingDate],
     ['Time slot', slotText(b.timeSlot)],
     ['Type of delivery', b.deliveryType],

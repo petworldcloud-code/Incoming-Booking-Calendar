@@ -177,6 +177,8 @@ describe('Code.gs company helpers match the app', () => {
     expect(lib.subjectFor('new', b, 'tg')).toBe('[TG] New booking: Shell - 2026-11-12 08:00 – 10:00');
     expect(lib.subjectFor('new', b)).toBe('New booking: Shell - 2026-11-12 08:00 – 10:00');
     expect(lib.mailText('Hi', b, 'tg')).toContain('Calendar: TG');
+    expect(lib.mailText('Hi', { ...b, poNumber: 'PO-123' }, 'tg')).toContain('PO number: PO-123');
+    expect(lib.mailText('Hi', b, 'tg')).not.toContain('PO number');
     expect(lib.mailText('Hi', b, 'tg')).toContain('Dynamic-Booking-Calendar/#tg');
   });
 });

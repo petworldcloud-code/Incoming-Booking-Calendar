@@ -102,6 +102,9 @@
       </div>
       <p id="b-date-note" class="error" role="alert" hidden></p>
       <label>Company <select id="b-company" required></select><input id="b-company-fixed" type="text" readonly tabindex="-1" hidden></label>
+      <label>PO number
+        <input id="b-po" type="text" maxlength="60" placeholder="e.g. PO-2026-00123" autocomplete="off" autocapitalize="characters">
+      </label>
       <label>Type of delivery
         <select id="b-delivery" required>
           <option value="">Select…</option>
@@ -187,9 +190,10 @@
       <dt id="v-truck-dt">Type of truck</dt><dd id="v-truck"></dd>
       <dt>Number of vehicles</dt><dd id="v-count"></dd>
       <dt>Cargo</dt><dd id="v-pallet"></dd>
+      <dt>PO number</dt><dd id="v-po"></dd>
       <dt>Plate number</dt><dd id="v-plate"></dd>
       <dt>Notes</dt><dd id="v-notes"></dd>
-      <dt>Attachments</dt><dd><ul id="v-att" class="attlist"></ul></dd>
+      <dt>Attachments</dt><dd><ul id="v-att" class="attlist"></ul><p class="meta" id="v-att-hint" hidden>Click a file to open it (pictures and PDFs open in a new tab; other files download).</p></dd>
     </dl>
     <p id="v-meta" class="meta"></p>
     <div class="dlg-actions">
