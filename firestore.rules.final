@@ -71,7 +71,7 @@ service cloud.firestore {
     // companyId is only present on bookings inside a calendar.
     function validBookingShape(d) {
       return d.keys().hasAll(['bookingDate', 'eventName', 'truckCount', 'createdBy', 'createdByName', 'createdAt', 'updatedBy', 'updatedByName', 'updatedAt'])
-        && d.keys().hasOnly(['bookingDate', 'eventName', 'companyId', 'poNumber', 'notes', 'deliveryType', 'vehicleType', 'truckType', 'truckCount', 'palletized', 'plateNumber', 'timeSlot', 'attachments', 'createdBy', 'createdByName', 'createdAt', 'updatedBy', 'updatedByName', 'updatedAt'])
+        && d.keys().hasOnly(['bookingDate', 'eventName', 'companyId', 'poNumber', 'notes', 'deliveryType', 'vehicleType', 'truckType', 'truckCount', 'palletized', 'palletCount', 'plateNumber', 'timeSlot', 'attachments', 'createdBy', 'createdByName', 'createdAt', 'updatedBy', 'updatedByName', 'updatedAt'])
         && (!('timeSlot' in d) || (d.timeSlot is string
           && d.timeSlot.matches('^([01][0-9]|2[0-3]):[0-5][0-9]-([01][0-9]|2[0-3]):[0-5][0-9]$')))
         && d.bookingDate is string
@@ -85,6 +85,7 @@ service cloud.firestore {
           ? !('truckType' in d)
           : ('truckType' in d && d.truckType in ['40footer', '20footer', '10ton', '5ton', '3ton', '1ton']))
         && (!('palletized' in d) || d.palletized is bool)
+        && (!('palletCount' in d) || (d.get('palletized', false) == true && d.palletCount is int && d.palletCount >= 1 && d.palletCount <= 9999))
         && (!('plateNumber' in d) || (d.plateNumber is string && d.plateNumber.size() <= 100))
         && (!('poNumber' in d) || (d.poNumber is string && d.poNumber.size() <= 60))
         && d.truckCount is int && d.truckCount >= 1 && d.truckCount <= 6

@@ -145,7 +145,10 @@
           </select>
         </label>
       </div>
-      <label>Plate number (optional)
+      <label id="b-pcount-label" hidden>Number of pallets
+        <input id="b-pcount" type="number" min="1" max="9999" step="1" inputmode="numeric" placeholder="e.g. 12">
+      </label>
+      <label>Vehicle plate number (optional)
         <input id="b-plate" type="text" maxlength="100" placeholder="e.g. WXY 1234 (separate several with commas)" autocomplete="off" autocapitalize="characters">
       </label>
       <label>Notes (optional) <textarea id="b-notes" maxlength="1000" rows="3"></textarea></label>
@@ -195,7 +198,7 @@
       <dt>Number of vehicles</dt><dd id="v-count"></dd>
       <dt>Cargo</dt><dd id="v-pallet"></dd>
       <dt>PO number</dt><dd id="v-po"></dd>
-      <dt>Plate number</dt><dd id="v-plate"></dd>
+      <dt>Vehicle plate number</dt><dd id="v-plate"></dd>
       <dt>Notes</dt><dd id="v-notes"></dd>
       <dt>Attachments</dt><dd><ul id="v-att" class="attlist"></ul><p class="meta" id="v-att-hint" hidden>Click a file to open it (pictures and PDFs open in a new tab; other files download).</p></dd>
     </dl>

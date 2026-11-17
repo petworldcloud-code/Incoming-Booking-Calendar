@@ -116,8 +116,8 @@ function detailRows(b, cal) {
     ['Time slot', slotText(b.timeSlot)],
     ['Type of delivery', b.deliveryType],
     ['Vehicle', vehicle ? (b.truckCount || 1) + ' x ' + vehicle : ''],
-    ['Cargo', b.palletized === true ? 'Palletized' : (b.palletized === false ? 'Not palletized' : '')],
-    ['Plate number', b.plateNumber],
+    ['Cargo', b.palletized === true ? ('Palletized' + (b.palletCount ? ' (' + b.palletCount + (b.palletCount === 1 ? ' pallet' : ' pallets') + ')' : '')) : (b.palletized === false ? 'Not palletized' : '')],
+    ['Vehicle plate number', b.plateNumber],
     ['Notes', b.notes],
     ['Booked by', b.createdByName]
   ];

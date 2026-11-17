@@ -10,8 +10,12 @@ export const vehicleOf = (b) => b.vehicleType || (b.truckType ? 'Truck' : '');
 /** Short text for chips and lists: "Van", or the truck type ("10ton"). */
 export const vehicleText = (b) => (vehicleOf(b) === 'Van' ? 'Van' : (b.truckType || ''));
 
-/** "Palletized" / "Not palletized" / '' when not recorded (older bookings). */
-export const palletText = (b) => (b.palletized === true ? 'Palletized' : b.palletized === false ? 'Not palletized' : '');
+/** "Palletized (12 pallets)" / "Not palletized" / '' when not recorded (older bookings). */
+export const palletText = (b) => (b.palletized === true
+  ? (b.palletCount ? `Palletized (${b.palletCount} ${b.palletCount === 1 ? 'pallet' : 'pallets'})` : 'Palletized')
+  : b.palletized === false ? 'Not palletized' : '');
+
+export const MAX_PALLETS = 9999;
 
 /** Fields to send to Firestore for the vehicle part; unused ones are returned as undefined. */
 export function vehicleFields(f) {
@@ -21,6 +25,7 @@ export function vehicleFields(f) {
     vehicleType: f.vehicleType,
     truckType: van ? undefined : f.truckType,
     palletized: f.palletized === 'yes' ? true : false,
+    palletCount: f.palletized === 'yes' ? Number(f.palletCount) : undefined,
     plateNumber: (f.plateNumber || '').trim().replace(/\s+/g, ' ') || undefined
   };
 }
@@ -32,6 +37,10 @@ export function vehicleProblem(f) {
   if (f.vehicleType === 'Truck' && !TRUCK_TYPES.includes(f.truckType)) return 'Choose the type of truck.';
   if (!(f.truckCount >= 1 && f.truckCount <= 6)) return 'Choose the number of vehicles (1-6).';
   if (f.palletized !== 'yes' && f.palletized !== 'no') return 'Choose whether the cargo is palletized.';
-  if ((f.plateNumber || '').length > 100) return 'Plate number is too long (max 100 characters).';
+  if (f.palletized === 'yes') {
+    const n = Number(f.palletCount);
+    if (!(f.palletCount !== '' && f.palletCount != null && Number.isInteger(n) && n >= 1 && n <= MAX_PALLETS)) return `Enter how many pallets (1-${MAX_PALLETS}).`;
+  }
+  if ((f.plateNumber || '').length > 100) return 'Vehicle plate number is too long (max 100 characters).';
   return '';
 }

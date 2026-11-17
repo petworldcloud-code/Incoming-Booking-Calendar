@@ -479,12 +479,14 @@ function openBookingDialog(b, presetDate) {
   $('b-truck-label').hidden = $('b-vehicle').value !== 'Truck';
   $('b-count').value = editing && b.truckCount ? String(b.truckCount) : '';
   $('b-pallet').value = editing && typeof b.palletized === 'boolean' ? (b.palletized ? 'yes' : 'no') : '';
+  $('b-pcount').value = editing && b.palletized && b.palletCount ? String(b.palletCount) : '';
+  $('b-pcount-label').hidden = $('b-pallet').value !== 'yes';
   $('b-plate').value = editing ? (b.plateNumber || '') : '';
   $('b-po').value = editing ? (b.poNumber || '') : '';
   state.files = { bookingId: editing ? b.id : null, existing: editing ? [...(b.attachments || [])] : [], remove: [], add: [] };
   $('b-files').value = '';
   const ro = editing && !canEdit(b);
-  ['b-date', 'b-slot', 'b-company', 'b-notes', 'b-delivery', 'b-vehicle', 'b-truck', 'b-count', 'b-pallet', 'b-plate', 'b-po', 'b-files'].forEach((id) => { $(id).disabled = ro; });
+  ['b-date', 'b-slot', 'b-company', 'b-notes', 'b-delivery', 'b-vehicle', 'b-truck', 'b-count', 'b-pallet', 'b-pcount', 'b-plate', 'b-po', 'b-files'].forEach((id) => { $(id).disabled = ro; });
   // Standard users: company is fixed to their own and shown as plain text, not a choice.
   const pickCompany = isAdmin() || state.multi; // in a calendar everyone chooses from its company list
   $('b-company').hidden = !pickCompany;
@@ -572,7 +574,7 @@ async function saveBooking(e) {
   const err = $('b-error');
   const raw = {
     deliveryType: $('b-delivery').value, vehicleType: $('b-vehicle').value, truckType: $('b-truck').value, truckCount: Number($('b-count').value),
-    palletized: $('b-pallet').value, plateNumber: $('b-plate').value
+    palletized: $('b-pallet').value, palletCount: $('b-pcount').value, plateNumber: $('b-plate').value
   };
   const f = {
     bookingDate: $('b-date').value, ...companyFields(), notes: $('b-notes').value.trim(),
@@ -933,6 +935,13 @@ function wire() {
     const truck = $('b-vehicle').value === 'Truck';
     $('b-truck-label').hidden = !truck;
     if (!truck) $('b-truck').value = '';
+  };
+  // "Number of pallets" only appears when the cargo is palletized; choosing Not palletized hides it and forgets the number.
+  $('b-pallet').onchange = () => {
+    const yes = $('b-pallet').value === 'yes';
+    $('b-pcount-label').hidden = !yes;
+    if (!yes) $('b-pcount').value = '';
+    else $('b-pcount').focus();
   };
   $('btn-logout').onclick = () => api.logout();
   $('btn-password').onclick = () => { $('form-password').reset(); $('pw-error').hidden = true; $('dlg-password').showModal(); };

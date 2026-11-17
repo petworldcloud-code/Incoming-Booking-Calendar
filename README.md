@@ -28,6 +28,7 @@ Screen layout: header (today, calendar range, legend, user menu); **left** = boo
 Key behaviours:
 - **Calendar** = 31 consecutive days starting **today in Malaysia time (Asia/Kuala_Lumpur)**. It rolls forward automatically at Malaysian midnight. Prev/Next move by 31 days; **Today** returns to the live range. If the first day is mid-week, earlier cells in that row are blank.
 - **One date per booking** (not a date range).
+- **Number of pallets** appears only when the cargo is "Palletized" and is then required (whole number 1-9999). "Not palletized" shows nothing and stores no number. The optional field is called "Vehicle plate number".
 - **PO number** (optional text, max 60 characters) can be entered on every booking; it shows on the calendar label, the table, the details pop-up and the emails.
 - **At least one attachment is required** on a new booking (and the form asks for one when editing). Click a booking on the calendar to open its details; click an attachment there to open it (pictures and PDFs open in a new tab, other files download).
 - Each day shows up to **6** company labels, then `+N more bookings`, which opens the day list. Nothing is hidden or dropped.

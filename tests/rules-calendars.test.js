@@ -116,6 +116,15 @@ function suite(label, rulesFile, { legacyOpen }) {
         await assertFails(setDoc(doc(ctx('tina'), B('tg', 'p4')), booking('tina', { poNumber: 123 })));
         await assertSucceeds(updateDoc(doc(ctx('tina'), B('tg', 'b1')), upd('tina', { poNumber: 'PO-77' })));
       });
+      it('pallet count is a whole number 1-9999 and only with palletized cargo', async () => {
+        await assertSucceeds(setDoc(doc(ctx('tina'), B('tg', 'q1')), booking('tina', { palletized: true, palletCount: 12 })));
+        await assertSucceeds(setDoc(doc(ctx('tina'), B('tg', 'q2')), booking('tina', { palletized: false })));
+        await assertFails(setDoc(doc(ctx('tina'), B('tg', 'q3')), booking('tina', { palletized: false, palletCount: 5 })));
+        await assertFails(setDoc(doc(ctx('tina'), B('tg', 'q4')), booking('tina', { palletCount: 5 })));
+        await assertFails(setDoc(doc(ctx('tina'), B('tg', 'q5')), booking('tina', { palletized: true, palletCount: 0 })));
+        await assertFails(setDoc(doc(ctx('tina'), B('tg', 'q6')), booking('tina', { palletized: true, palletCount: 2.5 })));
+        await assertFails(setDoc(doc(ctx('tina'), B('tg', 'q7')), booking('tina', { palletized: true, palletCount: 10000 })));
+      });
       it('a new booking needs at least one attachment', async () => {
         const none = booking('tina'); delete none.attachments;
         await assertFails(setDoc(doc(ctx('tina'), B('tg', 'a1')), none));

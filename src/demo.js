@@ -57,7 +57,7 @@ function mk(dayOffset, eventName, n = 0, cal = 'dim') {
     id: `d${String(seq).padStart(3, '0')}`, ...(companies[cal]?.find((c) => c.name === eventName) ? { companyId: companies[cal].find((c) => c.name === eventName).id } : {}), bookingDate: addDays(todayISO(), dayOffset), eventName, notes: '',
     ...(seq % 5 === 0 ? { vehicleType: 'Van' } : { vehicleType: 'Truck', truckType: ['40footer', '20footer', '10ton', '5ton', '3ton', '1ton'][seq % 6] }),
     deliveryType: ['Delivery stock', 'Container pull', 'Unloading'][seq % 3],
-    truckCount: (seq % 6) + 1, palletized: seq % 2 === 0, ...(seq % 3 === 0 ? { plateNumber: `WXY ${1000 + seq}` } : {}), ...(seq % 2 === 1 ? { poNumber: `PO-2026-${String(100 + seq).padStart(5, '0')}` } : {}), attachments: [],
+    truckCount: (seq % 6) + 1, palletized: seq % 2 === 0, ...(seq % 2 === 0 ? { palletCount: seq + 4 } : {}), ...(seq % 3 === 0 ? { plateNumber: `WXY ${1000 + seq}` } : {}), ...(seq % 2 === 1 ? { poNumber: `PO-2026-${String(100 + seq).padStart(5, '0')}` } : {}), attachments: [],
     timeSlot: ['08:00-09:00', '09:00-10:00', '10:00-11:00', '11:00-12:00'][seq % 4],
     createdBy: me.uid, createdByName: me.displayName, updatedBy: me.uid, updatedByName: me.displayName,
     createdAt: { toMillis: () => 1000 + seq }, updatedAt: { toMillis: () => 1000 + seq + n }
@@ -133,7 +133,7 @@ export const api = {
     const r = rows.find((x) => x.id === id);
     if (!r) throw Object.assign(new Error('This booking no longer exists.'), { code: 'gone' });
     if (r.updatedAt.toMillis() !== expected) throw Object.assign(new Error('Someone else changed this booking.'), { code: 'conflict' });
-    for (const k of ['truckType', 'plateNumber', 'poNumber', 'timeSlot', 'deliveryType']) delete r[k]; // optional fields cleared when empty, as in Firestore
+    for (const k of ['truckType', 'plateNumber', 'palletCount', 'poNumber', 'timeSlot', 'deliveryType']) delete r[k]; // optional fields cleared when empty, as in Firestore
     add.forEach((a) => attData.set(`${id}/${a.id}`, a));
     const attachments = [...(r.attachments || []).filter((a) => !remove.includes(a.id)), ...add.map(({ id: aid, name, type, size }) => ({ id: aid, name, type, size }))];
     seq += 1; Object.assign(r, f, { attachments, updatedAt: { toMillis: () => 5000 + seq } }); if (!f.poNumber) delete r.poNumber; notify();
