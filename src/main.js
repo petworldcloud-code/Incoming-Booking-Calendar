@@ -582,6 +582,8 @@ async function saveBooking(e) {
   }
   if (state.slots.length && !f.timeSlot) return fail('Choose a time slot.');
   if (!f.eventName) return fail('Choose the company.');
+  const kept = state.files.existing.filter((x) => !state.files.remove.includes(x.id)).length + state.files.add.length;
+  if (kept < 1) return fail('Attach at least one file (picture, PDF, Word or Excel) before saving.');
   const problem = vehicleProblem(raw);
   if (problem) return fail(problem);
   const btn = $('b-save'); btn.disabled = true; btn.textContent = 'Saving…'; err.hidden = true;

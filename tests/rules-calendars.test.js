@@ -13,8 +13,9 @@ function suite(label, rulesFile, { legacyOpen }) {
     const ctx = (uid) => env.authenticatedContext(uid, { email: `${uid}@x.com`, email_verified: true }).firestore();
     const B = (cal, id) => `calendars/${cal}/bookings/${id}`;
 
+    const att = [{ id: 'a1', name: 'po.pdf', type: 'application/pdf', size: 1000 }];
     const booking = (uid, over = {}) => ({
-      bookingDate: '2026-10-27', eventName: 'Shell', companyId: 'shell', notes: '', truckType: '40footer', truckCount: 2,
+      bookingDate: '2026-10-27', eventName: 'Shell', companyId: 'shell', notes: '', truckType: '40footer', truckCount: 2, attachments: att,
       createdBy: uid, createdByName: uid, createdAt: serverTimestamp(),
       updatedBy: uid, updatedByName: uid, updatedAt: serverTimestamp(), ...over
     });
@@ -107,6 +108,13 @@ function suite(label, rulesFile, { legacyOpen }) {
         await assertFails(setDoc(doc(ctx('tina'), B('tg', 'c4')), booking('tina', { companyId: 'ghost', eventName: 'Ghost' })));
         const noCompany = booking('tina'); delete noCompany.companyId;
         await assertFails(setDoc(doc(ctx('tina'), B('tg', 'c5')), noCompany));
+      });
+      it('a new booking needs at least one attachment', async () => {
+        const none = booking('tina'); delete none.attachments;
+        await assertFails(setDoc(doc(ctx('tina'), B('tg', 'a1')), none));
+        await assertFails(setDoc(doc(ctx('tina'), B('tg', 'a2')), booking('tina', { attachments: [] })));
+        await assertFails(setDoc(doc(ctx('admin'), B('tg', 'a3')), { ...none, createdBy: 'admin', createdByName: 'admin', updatedBy: 'admin', updatedByName: 'admin' }));
+        await assertSucceeds(setDoc(doc(ctx('tina'), B('tg', 'a4')), booking('tina')));
       });
       it('keeps the existing field checks', async () => {
         await assertFails(setDoc(doc(ctx('tina'), B('tg', 'f1')), booking('tina', { bookingDate: '27/10/2026' })));

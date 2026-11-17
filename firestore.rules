@@ -201,8 +201,10 @@ service cloud.firestore {
       match /bookings/{id} {
         allow read: if canUse(cal);
 
+        // A new booking must carry at least one attachment (the app also asks for it).
         allow create: if canUse(cal)
           && validBookingShape(request.resource.data)
+          && request.resource.data.get('attachments', []).size() >= 1
           && companyOk(request.resource.data)
           && dateOpenIn(request.resource.data.bookingDate)
           && request.resource.data.createdBy == request.auth.uid

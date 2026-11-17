@@ -209,3 +209,5 @@ dialog label input, dialog label textarea { margin-top: 3px; }
 @media (prefers-reduced-motion: no-preference) { .evt, .tab, button { transition: filter .12s, background .12s; } }
 
 #b-company-fixed { background: var(--lavender); font-weight: 600; color: var(--text); cursor: default; }
+
+.req { color: #b00020; font-weight: 600; }
