@@ -128,6 +128,7 @@ function onSession(s) {
   if (s.state === 'active') {
     if (!wasActive) startApp(); else reconcileCalendar(); // the admin may have moved this person to another calendar
     $('user-name').textContent = s.profile.displayName;
+    $('user-avatar').textContent = (s.profile.displayName || '?').trim().charAt(0).toUpperCase();
     drawRole();
     drawAdminButtons();
     $('btn-users').hidden = $('btn-settings').hidden = $('btn-slots').hidden = $('btn-blocked').hidden = $('btn-notify').hidden = s.profile.role !== 'admin';
@@ -977,6 +978,10 @@ function wire() {
   $('btn-notify').onclick = openNotify;
   $('nt-close').onclick = () => $('dlg-notify').close();
   $('nt-reset').onclick = resetNotifyForm;
+  // account menu: close after choosing something, or when clicking elsewhere / pressing Esc
+  $('usermenu').addEventListener('click', (e) => { if (e.target.closest('.user-actions button')) $('usermenu').open = false; });
+  document.addEventListener('click', (e) => { if (!e.target.closest('#usermenu')) $('usermenu').open = false; });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') $('usermenu').open = false; });
   $('nt-all').onchange = () => $('nt-companies').classList.toggle('off', $('nt-all').checked);
   $('form-notify').onsubmit = saveNotifyForm;
   $('nt-save-settings').onclick = saveNotifyChoices;
