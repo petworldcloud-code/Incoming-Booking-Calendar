@@ -66,7 +66,7 @@ function showScreen(title, bodyNodes) {
   s.hidden = false;
   s.replaceChildren(h('div', { class: 'card' },
     h('div', { class: 'logo big', 'aria-hidden': 'true' }, '▦'),
-    h('h1', {}, 'Dynamic Booking Calendar'),
+    h('h1', {}, 'Incoming Booking Calendar'),
     title ? h('h2', {}, title) : null, ...bodyNodes));
 }
 function showApp() { $('screen').hidden = true; $('app').hidden = false; }
@@ -301,7 +301,7 @@ function drawHeader() {
   $('range-label').textContent = `${formatDisplay(r.start)} – ${formatDisplay(r.end)}`;
   $('range-days').textContent = `(${RANGE_DAYS} days)`;
   $('nav-today').disabled = state.viewStart === null;
-  const title = state.multi && state.cal ? `${calendarLabel(state.cal)} · Booking Calendar` : 'Dynamic Booking Calendar';
+  const title = state.multi && state.cal ? `${calendarLabel(state.cal)} · Incoming Booking Calendar` : 'Incoming Booking Calendar';
   $('app-title').textContent = title;
   document.title = title;
   drawSwitcher();

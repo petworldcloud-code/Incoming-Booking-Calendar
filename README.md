@@ -1,4 +1,4 @@
-# Dynamic Booking Calendar (DIM Calendar Booking)
+# Incoming Booking Calendar (DIM Calendar Booking; formerly Dynamic Booking Calendar)
 
 A shared **lorry booking calendar** with **several separate calendars** (DIM, TG, NF, PME). Staff log in, pick a date, a company from their calendar's list, the vehicle and how many, and the booking appears on a rolling 31-day calendar in that company's colour. Each staff account belongs to **one** calendar; administrators see and switch between all of them.
 

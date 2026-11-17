@@ -1,5 +1,5 @@
 /**
- * Dynamic Booking Calendar - email sender (Google Apps Script).
+ * Incoming Booking Calendar - email sender (Google Apps Script).
  *
  * Why this exists: the site runs on Firebase's free Spark plan, which cannot run server code or send mail.
  * This script runs on the owner's Google account (free), wakes up every 5 minutes, reads Firestore with the
@@ -25,7 +25,7 @@ var PROJECT_ID = 'dynamic-booking-calendar';
 var APP_URL = 'https://petworldcloud-code.github.io/Dynamic-Booking-Calendar/';
 var TZ = 'Asia/Kuala_Lumpur';
 var UTC_OFFSET = '+08:00'; // Malaysia has no daylight saving
-var SENDER_NAME = 'Dynamic Booking Calendar';
+var SENDER_NAME = 'Incoming Booking Calendar';
 var DOCS = 'projects/' + PROJECT_ID + '/databases/(default)/documents';
 var DB = 'https://firestore.googleapis.com/v1/' + DOCS;
 
