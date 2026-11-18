@@ -987,6 +987,15 @@ function wire() {
   $('btn-notify').onclick = openNotify;
   $('nt-close').onclick = () => $('dlg-notify').close();
   $('nt-reset').onclick = resetNotifyForm;
+  // light / dark switch: remembers the choice on this device; until pressed, the device setting decides
+  $('btn-theme').onclick = () => {
+    const root = document.documentElement;
+    const dark = root.getAttribute('data-theme') === 'dark'
+      || (!root.getAttribute('data-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    const next = dark ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('theme', next); } catch (e) { /* private mode: the choice just isn't remembered */ }
+  };
   // account menu: close after choosing something, or when clicking elsewhere / pressing Esc
   $('usermenu').addEventListener('click', (e) => { if (e.target.closest('.user-actions button')) $('usermenu').open = false; });
   document.addEventListener('click', (e) => { if (!e.target.closest('#usermenu')) $('usermenu').open = false; });
