@@ -19,11 +19,23 @@ export function watchCalendars(cb, onError) {
   return onSnapshot(col(), (s) => cb(s.docs.map((d) => ({ id: d.id, ...d.data() }))), onError);
 }
 
-export function createCalendar(code, order = 0) {
+/** The name shown for a calendar ("TG YFM"); blank = the code in capitals. */
+function cleanCalendarName(raw, id) {
+  const n = String(raw || '').trim().replace(/\s+/g, ' ');
+  if (n.length > 40) throw new Error('Calendar name is too long (max 40).');
+  return n || id.toUpperCase();
+}
+
+export function createCalendar(code, order = 0, name = '') {
   const id = cleanCalendarCode(code);
   return setDoc(doc(col(), id), {
-    name: id.toUpperCase(), order, active: true, createdAt: serverTimestamp(), updatedAt: serverTimestamp()
+    name: cleanCalendarName(name, id), order, active: true, createdAt: serverTimestamp(), updatedAt: serverTimestamp()
   });
+}
+
+/** Change the name shown for a calendar (the code stays). */
+export function renameCalendar(id, name) {
+  return updateDoc(doc(col(), id), { name: cleanCalendarName(name, id), updatedAt: serverTimestamp() });
 }
 
 /** Archive hides a calendar from staff; its data is kept. */

@@ -10,11 +10,11 @@ export async function lookupUsernameEmail(username) {
 }
 
 /** Admin only (enforced by rules): profile + username mapping, written atomically. */
-export function createUserProfile(uid, { displayName, username, email, role, status, calendar }) {
+export function createUserProfile(uid, { displayName, username, email, role, status, calendar, calendars }) {
   const batch = writeBatch(db);
   batch.set(doc(db, 'users', uid), {
     displayName: displayName.slice(0, 80), email, role, status,
-    ...(username ? { username } : {}), ...(calendar ? { calendar } : {}), // staff log in by email: no username needed
+    ...(username ? { username } : {}), ...(calendar ? { calendar } : {}), ...(calendars && calendars.length ? { calendars } : {}), // staff log in by email: no username needed
     createdAt: serverTimestamp(), updatedAt: serverTimestamp()
   });
   if (username) batch.set(doc(db, 'usernames', username), { email, uid });
@@ -42,5 +42,7 @@ export function updateUser(uid, fields) {
   // calendar: null removes the staff member's calendar.
   const f = { ...fields };
   if ('calendar' in f && !f.calendar) f.calendar = deleteField();
+  // calendars: the list a calendar administrator runs; an empty list removes it.
+  if ('calendars' in f && !(f.calendars && f.calendars.length)) f.calendars = deleteField();
   return updateDoc(doc(db, 'users', uid), { ...f, updatedAt: serverTimestamp() });
 }

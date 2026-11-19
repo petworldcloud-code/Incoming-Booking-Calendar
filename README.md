@@ -1,6 +1,6 @@
 # Incoming Booking Calendar (DIM Calendar Booking; formerly Dynamic Booking Calendar)
 
-A shared **lorry booking calendar** with **several separate calendars** (DIM, TG, NF, PME). Staff log in, pick a date, a company from their calendar's list, the vehicle and how many, and the booking appears on a rolling 31-day calendar in that company's colour. Each staff account belongs to **one** calendar; administrators see and switch between all of them.
+A shared **lorry booking calendar** with **several separate calendars** (DIM, TG, NF, PME). Staff log in, pick a date, a company from their calendar's list, the vehicle and how many, and the booking appears on a rolling 31-day calendar in that company's colour. Each staff account belongs to **one** calendar; administrators see and switch between all of them; a **calendar administrator** runs just the calendars chosen for them.
 
 > **Multi-calendar status (2026-11-11):** the code is built and deployed, but the live site stays in its old single-calendar mode until the go-live steps in **7.9** are done. Until then the app finds no calendars and behaves exactly as before.
 
@@ -18,6 +18,7 @@ A shared **lorry booking calendar** with **several separate calendars** (DIM, TG
 |---|---|
 | **Staff (one calendar)** | Log in with **email + password**. Opens straight into their own calendar (cannot see or switch to any other). Add a booking: pick the **company** from that calendar's list, **one date**, a **time slot** (when the admin has set any), **type of delivery** (Delivery stock / Container pull / Unloading), **type of vehicle** (Van or Truck; **type of truck** only appears, and is required, when Truck is chosen), **number of vehicles (1-6)**, whether the cargo is **palletized**, an optional **plate number**, optional notes and up to 5 attachments. View every booking in their calendar. Edit/delete **only bookings they made**. Change their own password. |
 | **Administrator** | Everything above in **every** calendar (switcher buttons DIM / TG / NF / PME in the header; links like `#tg` open a calendar directly), plus: edit/delete **any** booking; **Calendars** (add / archive calendars); **Companies** (each calendar's company list and colours); **Users** (staff accounts and which calendar each uses); per calendar: **Blocked dates**, **Time slots**, **Email alerts**; and the global **Retention** setting. |
+| **Calendar administrator** (role `cadmin`) | Runs **only the calendars listed on their profile** (one or several, e.g. TG YFM + TG MMS; switcher buttons show just those). In those calendars: everything Staff can do, plus edit/delete **any** booking, **Companies**, **Time slots**, **Blocked dates** and **Email alerts**. They **cannot**: add or archive calendars, open **Users** (create accounts, change roles), change **Retention**, or see any other calendar. Set by a full Administrator under Users. |
 | *Old company account (role `user`)* | *Before go-live only: today's username logins, one per company. They are suspended by the go-live move (7.9) and replaced by staff accounts.* |
 
 **Per calendar:** bookings, company list (with colours), time slots, blocked dates, email alert list and settings.
@@ -143,7 +144,7 @@ vite.config.js              base path = /Incoming-Booking-Calendar/ (GitHub Page
 | `calendars/{code}/companies/{id}` | `name`, `color` (`#rrggbb`), `active` (false = removed from the dropdown, old bookings keep it). Id is made from the name (`shell`, `tg-logistics`). |
 | `calendars/{code}/bookings/{id}` (+ `/attachments`) | Same fields as `bookings` below, plus `companyId`; `eventName` = that company's name. |
 | `calendars/{code}/blockedDates`, `/settings/slots`, `/settings/notifications`, `/notifyRecipients`, `/notifyLog` | Same as the root versions below, but for that calendar only. In `notifyRecipients`, `companies` holds **company ids**. |
-| `users/{uid}` | Also `role: staff` and `calendar` (the code). Staff have no `usernames` entry: they log in with their email. |
+| `users/{uid}` | Also `role: staff` and `calendar` (the code), or `role: cadmin` and `calendars` (a list of codes). Staff have no `usernames` entry: they log in with their email. |
 | `settings/retention` | Stays **global** (one setting for all calendars). |
 
 The table below is the **old single-calendar layout** (still used until go-live, then kept as a backup copy until the owner says to delete it):
@@ -194,7 +195,7 @@ The rules in `firestore.rules` are the real protection. Summary:
 - Only the booking's creator or an admin can edit/delete it or its attachments. Creation info cannot be altered.
 - Booking fields are validated (date format, truck type list, count 1-6, max 5 attachments, size limits).
 - Only admins create/rename/delete users and write usernames/settings. Admins cannot delete themselves.
-- **Calendars:** `canUse(cal)` = an admin, or an active **staff** member whose profile `calendar` is that code (and the calendar is not archived). Everything under `calendars/{cal}/` needs it. Staff cannot change their own calendar, role or status.
+- **Calendars:** `canUse(cal)` = an admin, or an active **calendar administrator** whose profile `calendars` list has that code, or an active **staff** member whose profile `calendar` is that code (calendar not archived for the last two). `canManage(cal)` = an admin or that calendar's calendar administrator; it gates writes to companies, time slots, blocked dates, email recipients and to other people's bookings. Adding calendars, users and retention stay admin-only. Everything under `calendars/{cal}/` needs it. Staff cannot change their own calendar, role or status.
 - **Company on a booking** must be an **active company of the same calendar**, and `eventName` must equal its name, so nobody can book for another calendar's company or invent one.
 - Companies, calendars, time slots, blocked dates, email recipients and settings: admin writes only. The email log is closed to the app.
 - Everything else is denied.
@@ -213,7 +214,7 @@ Open the live site, enter **username** (e.g. `dim`) or **email**, and the passwo
 ### 7.2a Calendars and companies (admin, after go-live)
 - **Calendars** (header): add a calendar by code (e.g. `pme`), or **Archive** one (hidden from staff, data kept; **Restore** brings it back). Calendars are never deleted.
 - **Companies** (header, for the calendar you are viewing): add a company with a name and colour, **Edit** (rename / recolour), **Remove** (taken out of the dropdown; old bookings keep it and their colour). Renaming a company renames it for new bookings only.
-- **Users** -> "Add staff or administrator": name, email, password, **Staff (one calendar)** + the calendar, or **Administrator (all calendars)**. **Change calendar** moves a staff member. The **Show** filter lists one calendar's staff.
+- **Users** -> "Add staff or administrator": name, email, password, **Staff (one calendar)** + the calendar, or **Calendar administrator (chosen calendars)** + tick the calendars, or **Administrator (all calendars, users, settings)**. The **Role** and **Calendar** columns change a person's role or calendar (use **Edit** to change a calendar administrator's calendars). **Calendars** -> each calendar's *name shown* (e.g. "TG YFM") can be edited; the code (e.g. `tgyfm`) never changes. The **Show** filter lists one calendar's staff.
 
 ### 7.2 Add a company (admin, old single-calendar mode)
 Header -> **Users** -> "Add user": enter **Company name**, optional email (only if they should be able to reset their own password by email), **initial password** (min 6), role (Standard user / Administrator) -> **Create**. Give them the username and password. They can change it via **Password** in the header.

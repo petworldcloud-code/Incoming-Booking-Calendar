@@ -12,6 +12,22 @@ export function cleanCalendarCode(raw) {
 /** Display form of a code: "tg" -> "TG". */
 export const calendarLabel = (code) => String(code || '').toUpperCase();
 
+/** Name shown for a calendar: the name saved on it ("TG YFM"), else its code in capitals ("TGYFM"). */
+export function calendarName(code, calendars) {
+  const c = (calendars || []).find((x) => x.id === code);
+  const n = c && typeof c.name === 'string' ? c.name.trim() : '';
+  return n || calendarLabel(code);
+}
+
+/** Roles: admin = everything; cadmin = administrator of the calendars on the profile; staff = one calendar. */
+export const isFullAdmin = (profile) => !!profile && profile.role === 'admin';
+
+/** Codes of the calendars a calendar administrator runs (empty for anyone else). */
+export function adminCalendars(profile) {
+  if (!profile || profile.role !== 'cadmin' || !Array.isArray(profile.calendars)) return [];
+  return profile.calendars.filter((c) => typeof c === 'string');
+}
+
 /**
  * Firestore path segments for a calendar's data. With no calendar (the old single-calendar app)
  * this is the root, so existing paths such as "bookings" keep working until the data is moved.
@@ -20,11 +36,31 @@ export function calendarBase(cal) {
   return cal ? ['calendars', cal] : [];
 }
 
-/** Who may open a calendar: admins any; active staff only the one on their profile. */
+/** Who may open a calendar: admins any; calendar admins theirs; active staff only the one on their profile. */
 export function canUseCalendar(profile, cal) {
   if (!profile || profile.status !== 'active' || !cal) return false;
   if (profile.role === 'admin') return true;
+  if (profile.role === 'cadmin') return adminCalendars(profile).includes(cal);
   return profile.calendar === cal;
+}
+
+/** Who may change a calendar's bookings, companies, time slots, blocked dates and email alerts. */
+export function canManageCalendar(profile, cal) {
+  if (!profile || profile.status !== 'active' || !cal) return false;
+  if (profile.role === 'admin') return true;
+  return profile.role === 'cadmin' && adminCalendars(profile).includes(cal);
+}
+
+/**
+ * Fields to save when someone's role changes in the Users table, or null when more information is needed first.
+ * Switching to a calendar admin needs at least one calendar, staff needs exactly one.
+ */
+export function roleChange(user, role) {
+  const mine = user.role === 'cadmin' ? adminCalendars(user) : (user.calendar ? [user.calendar] : []);
+  if (role === 'admin') return { role };
+  if (role === 'staff') return mine.length ? { role, calendar: mine[0] } : null;
+  if (role === 'cadmin') return mine.length ? { role, calendars: mine } : null;
+  return null;
 }
 
 /** Calendars the person may see, in order. Admins get every active one; staff just their own. */

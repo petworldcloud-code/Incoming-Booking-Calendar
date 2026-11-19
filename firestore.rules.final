@@ -17,9 +17,19 @@ service cloud.firestore {
 
     // ---------- calendars ----------
     function calRef(cal) { return /databases/$(database)/documents/calendars/$(cal); }
-    // An admin sees every calendar; staff see only their own, and only while it is not archived.
+    // A calendar administrator ('cadmin') runs only the calendars listed on their profile (profile.calendars),
+    // and only while the calendar is not archived. A full administrator ('admin') runs all of them.
+    function isCalAdmin(cal) {
+      return isActive() && profile(request.auth.uid).role == 'cadmin'
+        && cal in profile(request.auth.uid).get('calendars', [])
+        && get(calRef(cal)).data.get('active', true) != false;
+    }
+    // May change this calendar's bookings, companies, time slots, blocked dates and email alerts.
+    function canManage(cal) { return isAdmin() || isCalAdmin(cal); }
+    // An admin sees every calendar; a calendar admin their calendars; staff only their own - archived ones are closed to them.
     function canUse(cal) {
       return isAdmin()
+        || isCalAdmin(cal)
         || (isActive() && profile(request.auth.uid).role == 'staff'
           && profile(request.auth.uid).get('calendar', '') == cal
           && get(calRef(cal)).data.get('active', true) != false);
@@ -31,10 +41,15 @@ service cloud.firestore {
       allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
 
       // No self-registration: only an admin creates profiles (accounts are made in the app by an admin).
-      // role 'staff' = a person with one calendar; 'user' = an old company account; 'admin' sees everything.
+      // role 'staff' = a person with one calendar; 'cadmin' = administrator of the calendars in 'calendars';
+      // 'user' = an old company account; 'admin' sees and runs everything.
       allow create: if isAdmin()
-        && request.resource.data.keys().hasOnly(['displayName', 'username', 'email', 'role', 'status', 'calendar', 'createdAt', 'updatedAt'])
-        && request.resource.data.role in ['admin', 'user', 'staff']
+        && request.resource.data.keys().hasOnly(['displayName', 'username', 'email', 'role', 'status', 'calendar', 'calendars', 'createdAt', 'updatedAt'])
+        && request.resource.data.role in ['admin', 'user', 'staff', 'cadmin']
+        && (request.resource.data.role != 'cadmin'
+          || (request.resource.data.get('calendars', null) is list
+            && request.resource.data.calendars.size() >= 1 && request.resource.data.calendars.size() <= 20))
+        && (!('calendars' in request.resource.data) || (request.resource.data.calendars is list && request.resource.data.calendars.size() <= 20))
         && request.resource.data.status in ['pending', 'active', 'suspended']
         && request.resource.data.displayName is string
         && request.resource.data.displayName.size() > 0
@@ -53,11 +68,15 @@ service cloud.firestore {
           && request.resource.data.displayName.size() > 0
           && request.resource.data.displayName.size() <= 80)
         || (isAdmin()
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'status', 'displayName', 'username', 'calendar', 'updatedAt'])
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'status', 'displayName', 'username', 'calendar', 'calendars', 'updatedAt'])
           && request.resource.data.displayName is string
           && request.resource.data.displayName.size() > 0
           && request.resource.data.displayName.size() <= 80
-          && request.resource.data.role in ['admin', 'user', 'staff']
+          && request.resource.data.role in ['admin', 'user', 'staff', 'cadmin']
+          && (request.resource.data.role != 'cadmin'
+            || (request.resource.data.get('calendars', null) is list
+              && request.resource.data.calendars.size() >= 1 && request.resource.data.calendars.size() <= 20))
+          && (!('calendars' in request.resource.data) || (request.resource.data.calendars is list && request.resource.data.calendars.size() <= 20))
           && request.resource.data.status in ['pending', 'active', 'suspended']
           && (request.resource.data.role != 'staff'
             || (request.resource.data.get('calendar', null) is string && exists(calRef(request.resource.data.calendar))))
@@ -167,10 +186,10 @@ service cloud.firestore {
         && request.resource.data.active is bool
         && request.resource.data.updatedAt == request.time;
 
-      // The company list of this calendar. Admin writes; people who can use the calendar read.
+      // The company list of this calendar. Admins and this calendar's administrators write; people who can use the calendar read.
       match /companies/{co} {
         allow read: if canUse(cal);
-        allow create: if isAdmin()
+        allow create: if canManage(cal)
           && co.matches('^[a-z0-9][a-z0-9-]{0,59}$')
           && request.resource.data.keys().hasOnly(['name', 'color', 'active', 'createdAt', 'updatedAt'])
           && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 120
@@ -179,7 +198,7 @@ service cloud.firestore {
           && request.resource.data.createdAt == request.time
           && request.resource.data.updatedAt == request.time;
         // Rename, recolour, archive. Companies are archived, not deleted: old bookings still point at them.
-        allow update: if isAdmin()
+        allow update: if canManage(cal)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'color', 'active', 'updatedAt'])
           && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 120
           && request.resource.data.color is string && request.resource.data.color.matches('^#[0-9a-fA-F]{6}$')
@@ -214,7 +233,7 @@ service cloud.firestore {
 
         // Staff change only their own bookings; an admin can change any. Creation info is immutable.
         allow update: if canUse(cal)
-          && (isOwner(resource.data) || isAdmin())
+          && (isOwner(resource.data) || canManage(cal))
           && validBookingShape(request.resource.data)
           && (request.resource.data.bookingDate == resource.data.bookingDate || dateOpenIn(request.resource.data.bookingDate))
           && ((request.resource.data.get('companyId', null) == resource.data.get('companyId', null)
@@ -226,15 +245,15 @@ service cloud.firestore {
           && request.resource.data.updatedBy == request.auth.uid
           && request.resource.data.updatedAt == request.time;
 
-        allow delete: if canUse(cal) && (isOwner(resource.data) || isAdmin());
+        allow delete: if canUse(cal) && (isOwner(resource.data) || canManage(cal));
 
         match /attachments/{aid} {
           allow read: if canUse(cal);
           allow create: if canUse(cal)
-            && (getAfter(/databases/$(database)/documents/calendars/$(cal)/bookings/$(id)).data.createdBy == request.auth.uid || isAdmin())
+            && (getAfter(/databases/$(database)/documents/calendars/$(cal)/bookings/$(id)).data.createdBy == request.auth.uid || canManage(cal))
             && validAttachment(request.resource.data);
           allow delete: if canUse(cal)
-            && (get(/databases/$(database)/documents/calendars/$(cal)/bookings/$(id)).data.createdBy == request.auth.uid || isAdmin());
+            && (get(/databases/$(database)/documents/calendars/$(cal)/bookings/$(id)).data.createdBy == request.auth.uid || canManage(cal));
           allow update: if false;
         }
       }
@@ -242,13 +261,13 @@ service cloud.firestore {
       // Blocked dates apply to everyone, admins included. Remove the block first to book that day.
       match /blockedDates/{d} {
         allow read: if canUse(cal);
-        allow create, update: if isAdmin() && validBlock(request.resource.data, d);
-        allow delete: if isAdmin();
+        allow create, update: if canManage(cal) && validBlock(request.resource.data, d);
+        allow delete: if canManage(cal);
       }
 
       match /settings/{doc} {
         allow read: if canUse(cal);
-        allow write: if isAdmin() && (
+        allow write: if canManage(cal) && (
           (doc == 'slots' && validSlots(request.resource.data))
           || (doc == 'notifications' && validNotifySettings(request.resource.data)));
       }
@@ -256,8 +275,8 @@ service cloud.firestore {
       // Email recipients of this calendar (admin only; the sender script reads them with the owner's access).
       // companies = ids of this calendar's companies.
       match /notifyRecipients/{e} {
-        allow read, delete: if isAdmin();
-        allow create, update: if isAdmin() && validRecipient(request.resource.data, e);
+        allow read, delete: if canManage(cal);
+        allow create, update: if canManage(cal) && validRecipient(request.resource.data, e);
       }
 
       // notifyLog/* is written only by the Apps Script (owner access) and closed to the app by the catch-all below.

@@ -46,6 +46,9 @@ function suite(label, rulesFile, { legacyOpen }) {
         for (const [c, order] of [['dim', 1], ['tg', 2]]) await setDoc(doc(db, 'calendars', c), { name: c.toUpperCase(), order, active: true, createdAt: T0, updatedAt: T0 });
         await setDoc(doc(db, 'calendars', 'nf'), { name: 'NF', order: 3, active: false, createdAt: T0, updatedAt: T0 });
         await user('nina', 'staff', 'active', 'nf');   // staff of an archived calendar
+        for (const [uid, cals] of [['carl', ['tg']], ['cora', ['dim']], ['cat', ['tg', 'dim']]]) { // calendar administrators
+          await setDoc(doc(db, 'users', uid), { displayName: uid, email: `${uid}@x.com`, role: 'cadmin', status: 'active', calendars: cals, createdAt: T0, updatedAt: T0 });
+        }
         await setDoc(doc(db, 'calendars/tg/companies', 'shell'), { name: 'Shell', color: '#1f77b4', active: true, createdAt: T0, updatedAt: T0 });
         await setDoc(doc(db, 'calendars/tg/companies', 'old-co'), { name: 'Old Co', color: '#ff7f0e', active: false, createdAt: T0, updatedAt: T0 });
         await setDoc(doc(db, 'calendars/dim/companies', 'petronas'), { name: 'Petronas', color: '#2ca02c', active: true, createdAt: T0, updatedAt: T0 });
@@ -289,6 +292,74 @@ function suite(label, rulesFile, { legacyOpen }) {
       it('staff read only their own profile', async () => {
         await assertSucceeds(getDoc(doc(ctx('tina'), 'users', 'tina')));
         await assertFails(getDoc(doc(ctx('tina'), 'users', 'tom')));
+      });
+    });
+
+    describe('calendar administrators', () => {
+      const co = (over = {}) => ({ name: 'Petron', color: '#aabbcc', active: true, createdAt: serverTimestamp(), updatedAt: serverTimestamp(), ...over });
+      it('read and change every booking of their own calendar only', async () => {
+        await assertSucceeds(getDoc(doc(ctx('carl'), B('tg', 'b1'))));
+        await assertFails(getDoc(doc(ctx('cora'), B('tg', 'b1'))));
+        await assertSucceeds(updateDoc(doc(ctx('carl'), B('tg', 'b1')), upd('carl')));   // a booking Tina made
+        await assertFails(updateDoc(doc(ctx('cora'), B('tg', 'b1')), upd('cora')));
+        await assertSucceeds(deleteDoc(doc(ctx('carl'), B('tg', 'b1'))));
+      });
+      it('can book in their calendar', async () => {
+        await assertSucceeds(setDoc(doc(ctx('carl'), B('tg', 'c1')), booking('carl')));
+        await assertFails(setDoc(doc(ctx('carl'), B('dim', 'c2')), booking('carl', { eventName: 'Petronas', companyId: 'petronas' })));
+      });
+      it('a calendar administrator of two calendars works in both', async () => {
+        await assertSucceeds(setDoc(doc(ctx('cat'), 'calendars/tg/companies', 'petron'), co()));
+        await assertSucceeds(setDoc(doc(ctx('cat'), 'calendars/dim/companies', 'petron'), co()));
+        await assertFails(setDoc(doc(ctx('cat'), 'calendars/nf/companies', 'petron'), co())); // not one of hers (and archived)
+      });
+      it('manage companies, slots, blocked dates and email alerts of their calendar only', async () => {
+        await assertSucceeds(setDoc(doc(ctx('carl'), 'calendars/tg/companies', 'petron'), co()));
+        await assertSucceeds(updateDoc(doc(ctx('carl'), 'calendars/tg/companies', 'shell'), { name: 'Shell MY', updatedAt: serverTimestamp() }));
+        await assertFails(setDoc(doc(ctx('carl'), 'calendars/dim/companies', 'petron'), co()));
+        const slots = { slots: ['08:00-10:00'], updatedBy: 'carl', updatedAt: serverTimestamp() };
+        await assertSucceeds(setDoc(doc(ctx('carl'), 'calendars/tg/settings', 'slots'), slots));
+        await assertFails(setDoc(doc(ctx('carl'), 'calendars/dim/settings', 'slots'), slots));
+        await assertSucceeds(setDoc(doc(ctx('carl'), 'calendars/tg/blockedDates', '2026-12-25'), { reason: 'Christmas', createdBy: 'carl', createdAt: serverTimestamp() }));
+        await assertFails(setDoc(doc(ctx('carl'), 'calendars/dim/blockedDates', '2026-12-25'), { reason: 'Christmas', createdBy: 'carl', createdAt: serverTimestamp() }));
+        const rec = { email: 'a@x.co', allCompanies: true, companies: [], createdBy: 'carl', createdAt: serverTimestamp() };
+        await assertSucceeds(setDoc(doc(ctx('carl'), 'calendars/tg/notifyRecipients', 'a@x.co'), rec));
+        await assertSucceeds(getDoc(doc(ctx('carl'), 'calendars/tg/notifyRecipients', 'a@x.co')));
+        await assertFails(setDoc(doc(ctx('carl'), 'calendars/dim/notifyRecipients', 'a@x.co'), rec));
+      });
+      it('cannot add or archive calendars, manage users, or change retention', async () => {
+        const data = { name: 'PME', order: 4, active: true, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
+        await assertFails(setDoc(doc(ctx('carl'), 'calendars', 'pme'), data));
+        await assertFails(updateDoc(doc(ctx('carl'), 'calendars', 'tg'), { active: false, updatedAt: serverTimestamp() }));
+        await assertFails(updateDoc(doc(ctx('carl'), 'users', 'tom'), { calendar: 'dim', updatedAt: serverTimestamp() }));
+        await assertFails(updateDoc(doc(ctx('carl'), 'users', 'carl'), { role: 'admin', updatedAt: serverTimestamp() }));
+        await assertFails(updateDoc(doc(ctx('carl'), 'users', 'carl'), { calendars: ['tg', 'dim'], updatedAt: serverTimestamp() }));
+        await assertFails(getDoc(doc(ctx('carl'), 'users', 'tom')));
+        const ret = { autoDeleteEnabled: false, retentionDays: 90, updatedBy: 'carl', updatedAt: serverTimestamp() };
+        await assertFails(setDoc(doc(ctx('carl'), 'settings', 'retention'), ret));
+      });
+      it('a suspended calendar administrator, or one whose calendar is archived, is shut out', async () => {
+        await env.withSecurityRulesDisabled(async (c) => updateDoc(doc(c.firestore(), 'users', 'carl'), { status: 'suspended' }));
+        await assertFails(getDoc(doc(ctx('carl'), B('tg', 'b1'))));
+        await env.withSecurityRulesDisabled(async (c) => {
+          await updateDoc(doc(c.firestore(), 'users', 'carl'), { status: 'active' });
+          await updateDoc(doc(c.firestore(), 'calendars', 'tg'), { active: false });
+        });
+        await assertFails(getDoc(doc(ctx('carl'), B('tg', 'b1'))));
+      });
+      it('only an admin creates or changes calendar administrators, and they need calendars', async () => {
+        const p = (over = {}) => ({
+          displayName: 'New Admin', email: 'na@x.com', role: 'cadmin', status: 'active', calendars: ['tg', 'dim'],
+          createdAt: serverTimestamp(), updatedAt: serverTimestamp(), ...over
+        });
+        await assertSucceeds(setDoc(doc(ctx('admin'), 'users', 'n1'), p()));
+        const none = p(); delete none.calendars;
+        await assertFails(setDoc(doc(ctx('admin'), 'users', 'n2'), none));
+        await assertFails(setDoc(doc(ctx('admin'), 'users', 'n3'), p({ calendars: [] })));
+        await assertFails(setDoc(doc(ctx('carl'), 'users', 'n4'), p()));
+        await assertSucceeds(updateDoc(doc(ctx('admin'), 'users', 'carl'), { calendars: ['tg', 'dim'], updatedAt: serverTimestamp() }));
+        await assertSucceeds(updateDoc(doc(ctx('admin'), 'users', 'tom'), { role: 'cadmin', calendars: ['tg'], updatedAt: serverTimestamp() }));
+        await assertFails(updateDoc(doc(ctx('admin'), 'users', 'dora'), { role: 'cadmin', updatedAt: serverTimestamp() }));
       });
     });
 

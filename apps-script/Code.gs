@@ -57,6 +57,10 @@ function recipientsFor(list, company, companyId) {
 /** Firestore path prefix of a calendar ('' = the old single-calendar paths). */
 function basePath(cal) { return cal ? '/calendars/' + cal : ''; }
 
+/** Names shown for calendars ("TG YFM"), filled in at the start of each run from the calendar documents. */
+var CAL_NAMES = {};
+function calLabel(cal) { return cal ? String(CAL_NAMES[cal] || cal).toUpperCase() : ''; }
+
 /** Link in the mail: opens that calendar (#tg). */
 function linkFor(cal) { return APP_URL + (cal ? '#' + cal : ''); }
 
@@ -109,7 +113,7 @@ function esc(s) {
 function detailRows(b, cal) {
   var vehicle = b.vehicleType === 'Van' ? 'Van' : (b.truckType ? 'Truck (' + b.truckType + ')' : (b.vehicleType || ''));
   var rows = [
-    ['Calendar', cal ? String(cal).toUpperCase() : ''],
+    ['Calendar', calLabel(cal)],
     ['Company', b.eventName],
     ['PO number', b.poNumber],
     ['Date', b.bookingDate],
@@ -141,7 +145,7 @@ function mailText(heading, b, cal) {
 
 function subjectFor(kind, b, cal) {
   var when = b.bookingDate + (b.timeSlot ? ' ' + slotText(b.timeSlot) : '');
-  var tag = cal ? '[' + String(cal).toUpperCase() + '] ' : '';
+  var tag = cal ? '[' + calLabel(cal) + '] ' : '';
   if (kind === 'new') return tag + 'New booking: ' + b.eventName + ' - ' + when;
   if (kind === 'day') return tag + 'Reminder - tomorrow: ' + b.eventName + ' - ' + when;
   return tag + 'Reminder - in 2 hours: ' + b.eventName + ' - ' + when;
@@ -326,7 +330,9 @@ function checkAll() {
   if (!lock.tryLock(20000)) return;
   try {
     var startedAt = Number(PropertiesService.getScriptProperties().getProperty('startedAt')) || Date.now();
-    calendarsToCheck(listAll('/calendars')).forEach(function (cal) {
+    var allCalendars = listAll('/calendars');
+    allCalendars.forEach(function (c) { CAL_NAMES[c.id] = c.name; });
+    calendarsToCheck(allCalendars).forEach(function (cal) {
       try {
         checkCalendar(cal, startedAt);
       } catch (e) {

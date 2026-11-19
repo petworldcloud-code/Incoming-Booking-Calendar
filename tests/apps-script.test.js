@@ -265,7 +265,7 @@ describe('checkAll()', () => {
     expect(w.mails.slice(before).filter((m) => /New booking/.test(m.subject))).toEqual([]); // nothing resent
 
     // TG: its own company, recipient and settings
-    w.store.set('calendars/tg', { name: S('TG'), order: I(2), active: Bo(true) });
+    w.store.set('calendars/tg', { name: S('TG YFM'), order: I(2), active: Bo(true) });
     w.store.set('calendars/tg/companies/shell', { name: S('Shell'), color: S('#2563eb'), active: Bo(true) });
     w.store.set('calendars/tg/notifyRecipients/tg@x.co', { email: S('tg@x.co'), allCompanies: Bo(false), companies: A([S('shell')]) });
     w.store.set('calendars/tg/notifyRecipients/tg2@x.co', { email: S('tg2@x.co'), allCompanies: Bo(true), companies: A([]) });
@@ -283,7 +283,7 @@ describe('checkAll()', () => {
     const sent = w.mails.slice(mark).filter((m) => /New booking/.test(m.subject));
     // one separate mail per person, addressed only to them (no Bcc, nothing to the owner)
     expect(sent.map((m) => [m.subject, m.to])).toEqual([
-      ['[TG] New booking: Shell - 2026-11-20', 'tg@x.co'], ['[TG] New booking: Shell - 2026-11-20', 'tg2@x.co']]);
+      ['[TG YFM] New booking: Shell - 2026-11-20', 'tg@x.co'], ['[TG YFM] New booking: Shell - 2026-11-20', 'tg2@x.co']]);
     expect(sent.every((m) => m.bcc === undefined)).toBe(true);
     expect(sent[0].body).toContain('#tg');
     expect(w.get('calendars/tg/notifyLog/new_t1_2026-11-20_noslot').mailed).toBe(true);

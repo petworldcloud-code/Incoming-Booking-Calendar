@@ -4,7 +4,10 @@ import { prepareFile, base64ToBlobUrl, formatSize, MAX_FILES } from './attachmen
 import { vehicleOf, vehicleText, palletText, vehicleFields, vehicleProblem } from './booking-utils.js';
 import { slotLabel, slotStart, makeSlot, cleanSlots, generateSlots, MAX_SLOTS } from './slot-utils.js';
 import { scopeText, DEFAULT_NOTIFY } from './notify-utils.js';
-import { pickCalendar, visibleCalendars, calendarLabel, nextCompanyColor, COLOR_RE, cleanCalendarCode } from './calendar-utils.js';
+import {
+  pickCalendar, visibleCalendars, calendarLabel, calendarName, canManageCalendar, adminCalendars, roleChange,
+  nextCompanyColor, COLOR_RE, cleanCalendarCode
+} from './calendar-utils.js';
 import {
   todayISO, addDays, dateSpan, buildRange, formatDisplay, isValidISO, watchToday, weekdayName, RANGE_DAYS
 } from './date-utils.js';
@@ -56,8 +59,12 @@ const friendly = (e) => ({
   'permission-denied': 'You do not have permission to do that.'
 }[e?.code] || e?.message || 'Something went wrong.');
 
-const isAdmin = () => state.session?.profile?.role === 'admin';
-const canEdit = (b) => isAdmin() || b.createdBy === state.session?.user?.uid;
+const isAdmin = () => state.session?.profile?.role === 'admin'; // full administrator: every calendar, users, retention
+// May change the open calendar's bookings, companies, time slots, blocked dates and email alerts:
+// a full administrator, or a calendar administrator of this calendar.
+const canManage = () => (state.multi ? canManageCalendar(state.session?.profile, state.cal) : isAdmin());
+const label = (code) => calendarName(code, state.calendars); // "TG YFM" (the name saved on the calendar)
+const canEdit = (b) => canManage() || b.createdBy === state.session?.user?.uid;
 const me = () => ({ uid: state.session.user.uid, displayName: state.session.profile.displayName });
 
 function showScreen(title, bodyNodes) {
@@ -131,7 +138,7 @@ function onSession(s) {
     $('user-avatar').textContent = (s.profile.displayName || '?').trim().charAt(0).toUpperCase();
     drawRole();
     drawAdminButtons();
-    $('btn-users').hidden = $('btn-settings').hidden = $('btn-slots').hidden = $('btn-blocked').hidden = $('btn-notify').hidden = s.profile.role !== 'admin';
+    $('btn-users').hidden = $('btn-settings').hidden = !isAdmin(); // users and retention: full administrators only
     return;
   }
   stopApp();
@@ -231,23 +238,26 @@ function noCalendarScreen() {
 
 function drawSwitcher() {
   const box = $('cal-switch');
-  const list = state.multi && isAdmin() ? visibleCalendars(state.session.profile, state.calendars) : [];
+  const list = state.multi ? visibleCalendars(state.session.profile, state.calendars) : []; // staff have one, so no switcher
   box.hidden = list.length < 2;
   box.replaceChildren(...list.map((c) => h('button', {
     type: 'button', class: c.id === state.cal ? 'on' : '', 'aria-pressed': String(c.id === state.cal),
     onclick: () => { if (c.id !== state.cal) openCalendar(c.id); }
-  }, calendarLabel(c.id))));
+  }, label(c.id))));
 }
 
 function drawAdminButtons() {
-  $('btn-cals').hidden = $('btn-cos').hidden = !(state.multi && isAdmin());
+  $('btn-cals').hidden = !(state.multi && isAdmin()); // adding / archiving calendars: full administrators only
+  $('btn-cos').hidden = !(state.multi && canManage());
+  $('btn-slots').hidden = $('btn-blocked').hidden = $('btn-notify').hidden = !canManage();
 }
 
 function drawRole() {
   const p = state.session?.profile;
   if (!p) return;
   $('user-role').textContent = p.role === 'admin' ? 'Administrator'
-    : state.multi && p.calendar ? `Staff · ${calendarLabel(p.calendar)}` : 'Standard user';
+    : p.role === 'cadmin' ? `Admin · ${adminCalendars(p).map((c) => label(c)).join(', ')}`
+    : state.multi && p.calendar ? `Staff · ${label(p.calendar)}` : 'Standard user';
 }
 
 /** Everything that belongs to one calendar: bookings, time slots, blocked dates, email alerts. */
@@ -271,7 +281,7 @@ function startCalendarData() {
   }, () => {});
   unRecips?.(); unNotify?.();
   unRecips = unNotify = null;
-  if (isAdmin()) {
+  if (canManage()) {
     unRecips = api.watchRecipients((list) => { state.recipients = list; if ($('dlg-notify').open) drawRecipients(); }, () => {});
     unNotify = api.watchNotifySettings((s) => { state.notify = s; }, () => {});
   }
@@ -301,7 +311,7 @@ function drawHeader() {
   $('range-label').textContent = `${formatDisplay(r.start)} – ${formatDisplay(r.end)}`;
   $('range-days').textContent = `(${RANGE_DAYS} days)`;
   $('nav-today').disabled = state.viewStart === null;
-  const title = state.multi && state.cal ? `${calendarLabel(state.cal)} · Incoming Booking Calendar` : 'Incoming Booking Calendar';
+  const title = state.multi && state.cal ? `${label(state.cal)} · Incoming Booking Calendar` : 'Incoming Booking Calendar';
   $('app-title').textContent = title;
   document.title = title;
   drawSwitcher();
@@ -410,7 +420,7 @@ function checkBookingDate() {
   const unchanged = state.editing && state.known.get(state.editing.id)?.bookingDate === d;
   if (!closed || unchanged) { note.hidden = true; $('b-save').disabled = false; return; }
   note.hidden = false;
-  note.textContent = `${formatDisplay(d)} is closed for bookings${reason}. Please choose another date${isAdmin() ? ' (or remove the block under Blocked dates)' : ''}.`;
+  note.textContent = `${formatDisplay(d)} is closed for bookings${reason}. Please choose another date${canManage() ? ' (or remove the block under Blocked dates)' : ''}.`;
   $('b-save').disabled = true;
 }
 
@@ -627,8 +637,16 @@ function confirmDelete(b) {
 }
 
 // ---------- admin ----------
-const roleOf = (u) => (u.role === 'admin' ? 'admin' : 'staff'); // older accounts have role "user"
+const roleOf = (u) => (u.role === 'admin' ? 'admin' : u.role === 'cadmin' ? 'cadmin' : 'staff'); // older accounts have role "user"
 let usersHelpLegacy = '';
+
+/** Show the calendar choice that fits the role picked in the "Add" form. */
+function syncNewUserRole() {
+  const r = $('nu-role').value;
+  const staff = state.multi && r === 'staff';
+  $('nu-cal').hidden = !staff; $('nu-cal').required = staff;
+  $('nu-cals').hidden = !(state.multi && r === 'cadmin');
+}
 
 function setupUsersDialog() {
   const multi = state.multi;
@@ -639,18 +657,20 @@ function setupUsersDialog() {
   $('nu-email').placeholder = multi ? 'Email (they log in with it)' : 'Email (optional, enables password reset)';
   $('nu-email').required = multi;
   $('nu-role').replaceChildren(...(multi
-    ? [h('option', { value: 'staff' }, 'Staff (one calendar)'), h('option', { value: 'admin' }, 'Administrator (all calendars)')]
+    ? [h('option', { value: 'staff' }, 'Staff (one calendar)'),
+      h('option', { value: 'cadmin' }, 'Calendar administrator (chosen calendars)'),
+      h('option', { value: 'admin' }, 'Administrator (all calendars, users, settings)')]
     : [h('option', { value: 'user' }, 'Standard user'), h('option', { value: 'admin' }, 'Administrator')]));
   const cals = state.calendars.filter((c) => c.active !== false);
-  $('nu-cal').replaceChildren(h('option', { value: '' }, 'Calendar…'), ...cals.map((c) => h('option', { value: c.id }, calendarLabel(c.id))));
-  $('nu-cal').hidden = !multi; $('nu-cal').required = multi;
-  $('nu-role').onchange = () => { const staff = $('nu-role').value === 'staff'; $('nu-cal').hidden = !staff; $('nu-cal').required = staff; };
+  $('nu-cal').replaceChildren(h('option', { value: '' }, 'Calendar…'), ...cals.map((c) => h('option', { value: c.id }, label(c.id))));
+  $('nu-cals-list').replaceChildren(...cals.map((c) => h('label', {}, h('input', { type: 'checkbox', value: c.id }), label(c.id))));
+  $('nu-role').onchange = syncNewUserRole; syncNewUserRole();
   $('users-filter-label').hidden = !multi;
   $('users-filter').replaceChildren(h('option', { value: '*' }, 'All calendars'),
-    ...state.calendars.map((c) => h('option', { value: c.id }, calendarLabel(c.id))), h('option', { value: '-' }, 'No calendar'));
+    ...state.calendars.map((c) => h('option', { value: c.id }, label(c.id))), h('option', { value: '-' }, 'No calendar'));
   $('users-filter').onchange = () => drawUsersTable();
   $('users-help').textContent = multi
-    ? 'Staff log in with their email and the initial password you set, and only see the calendar chosen here. Administrators see every calendar. Change a person\'s calendar in the table. Set Status to "suspended" to block someone. Removing a login completely is done in the Firebase Console.'
+    ? 'Staff log in with their email and the initial password you set, and only see the calendar chosen here. A calendar administrator also manages the chosen calendars (bookings, companies, time slots, blocked dates, email alerts) but cannot add calendars or users. An administrator manages everything. Change a person\'s role or calendar in the table; use Edit to choose a calendar administrator\'s calendars. Set Status to "suspended" to block someone. Removing a login completely is done in the Firebase Console.'
     : usersHelpLegacy;
   $('users-head').replaceChildren(h('tr', {}, ...(multi
     ? ['Name', 'Email', 'Role', 'Calendar', 'Status', 'Actions'] : ['Company', 'Username', 'Role', 'Status', 'Actions']).map((t) => h('th', {}, t))));
@@ -660,7 +680,8 @@ let usersList = [];
 function drawUsersTable() {
   const multi = state.multi;
   const f = multi ? $('users-filter').value : '*';
-  const list = usersList.filter((u) => f === '*' || (f === '-' ? !u.calendar && roleOf(u) !== 'admin' : u.calendar === f));
+  const list = usersList.filter((u) => f === '*'
+    || (f === '-' ? !u.calendar && roleOf(u) === 'staff' : roleOf(u) === 'cadmin' ? adminCalendars(u).includes(f) : u.calendar === f));
   $('users-rows').replaceChildren(...list.map((u) => {
     const self = u.uid === state.session.user.uid;
     const sel = (key, opts, value = u[key]) => {
@@ -675,17 +696,27 @@ function drawUsersTable() {
       return h('tr', {}, h('td', {}, u.displayName), h('td', {}, u.username || u.displayName.trim().toLowerCase().replace(/\s+/g, '.')),
         h('td', {}, sel('role', ['user', 'admin'])), h('td', {}, sel('status', ['pending', 'active', 'suspended'])), acts);
     }
-    const admin = roleOf(u) === 'admin';
-    const calSel = h('select', { 'aria-label': `Calendar for ${u.displayName}`, disabled: self || admin },
-      h('option', { value: '' }, admin ? 'All' : 'None'),
-      ...state.calendars.map((c) => h('option', { value: c.id }, calendarLabel(c.id))));
-    calSel.value = admin ? '' : (u.calendar || '');
+    const role = roleOf(u);
+    const roleSel = h('select', { 'aria-label': `Role for ${u.displayName}`, disabled: self },
+      ...[['staff', 'Staff'], ['cadmin', 'Calendar admin'], ['admin', 'Administrator']].map(([v, t]) => h('option', { value: v, selected: role === v }, t)));
+    roleSel.onchange = async () => {
+      const next = roleSel.value, fields = roleChange(u, next);
+      roleSel.value = role;
+      if (!fields) { openEditUser(u, next); return; } // needs a calendar (or several) chosen first
+      try { await api.updateUser(u.uid, fields); toast('Role changed.'); } catch (x) { toast(friendly(x), 'err'); }
+    };
+    const calSel = h('select', { 'aria-label': `Calendar for ${u.displayName}`, disabled: self },
+      h('option', { value: '' }, 'None'),
+      ...state.calendars.map((c) => h('option', { value: c.id }, label(c.id))));
+    calSel.value = u.calendar || '';
     calSel.onchange = async () => {
       try { await api.updateUser(u.uid, { calendar: calSel.value }); toast('Calendar changed.'); }
       catch (x) { toast(friendly(x), 'err'); calSel.value = u.calendar || ''; }
     };
     return h('tr', {}, h('td', {}, u.displayName), h('td', {}, u.email?.endsWith('@dim-calendar.local') ? (u.username || '—') : (u.email || '—')),
-      h('td', {}, sel('role', ['staff', 'admin'], roleOf(u))), h('td', {}, calSel), h('td', {}, sel('status', ['pending', 'active', 'suspended'])), acts);
+      h('td', {}, roleSel),
+      h('td', {}, role === 'admin' ? 'All' : role === 'cadmin' ? (adminCalendars(u).map((c) => label(c)).join(', ') || 'None') : calSel),
+      h('td', {}, sel('status', ['pending', 'active', 'suspended'])), acts);
   }));
 }
 
@@ -698,9 +729,22 @@ function openUsers() {
 
 const usernameOf = (u) => u.username || u.displayName.trim().toLowerCase().replace(/\s+/g, '.');
 
-function openEditUser(u) {
+/**
+ * makeRole: set when the table asked for a role change that needs a choice first
+ * ('cadmin' = tick the calendars, 'staff' = pick the one calendar).
+ */
+function openEditUser(u, makeRole = null) {
+  const cadmin = state.multi && (makeRole ? makeRole === 'cadmin' : roleOf(u) === 'cadmin');
+  const needCal = state.multi && makeRole === 'staff';
+  const chosen = new Set(u.role === 'cadmin' ? adminCalendars(u) : (u.calendar ? [u.calendar] : []));
   $('eu-name').value = u.displayName;
-  $('dlg-edituser').querySelector('h3').textContent = state.multi ? 'Edit name' : 'Edit company';
+  $('eu-name').parentElement.firstChild.textContent = state.multi ? 'Full name ' : 'Company name ';
+  $('eu-cals').hidden = !cadmin;
+  $('eu-cals-list').replaceChildren(...state.calendars.filter((c) => c.active !== false || chosen.has(c.id))
+    .map((c) => h('label', {}, h('input', { type: 'checkbox', value: c.id, checked: chosen.has(c.id) }), label(c.id))));
+  $('eu-cal-label').hidden = !needCal; $('eu-cal').required = needCal;
+  $('eu-cal').replaceChildren(h('option', { value: '' }, 'Calendar…'), ...state.calendars.filter((c) => c.active !== false).map((c) => h('option', { value: c.id }, label(c.id))));
+  $('dlg-edituser').querySelector('h3').textContent = !state.multi ? 'Edit company' : makeRole ? 'Choose calendars' : 'Edit person';
   $('eu-username').textContent = state.multi ? 'The login email does not change.' : `Username stays "${usernameOf(u)}" (renaming the company does not change the login).`;
   $('eu-error').hidden = true;
   $('form-edituser').onsubmit = async (e) => {
@@ -709,7 +753,15 @@ function openEditUser(u) {
     if (!name) return;
     try {
       // Keep the existing username when the display name changes.
-      await api.updateUser(u.uid, { displayName: name, ...(u.username || state.multi ? {} : { username: usernameOf(u) }) });
+      const fields = { displayName: name, ...(u.username || state.multi ? {} : { username: usernameOf(u) }) };
+      if (cadmin) {
+        const picked = [...$('eu-cals-list').querySelectorAll('input:checked')].map((i) => i.value);
+        if (!picked.length) throw new Error('Tick at least one calendar.');
+        fields.calendars = picked;
+        if (makeRole === 'cadmin') fields.role = 'cadmin';
+      }
+      if (needCal) { fields.role = 'staff'; fields.calendar = $('eu-cal').value; }
+      await api.updateUser(u.uid, fields);
       $('dlg-edituser').close(); toast(state.multi ? 'Name updated.' : 'Company updated.');
     } catch (x) { $('eu-error').textContent = friendly(x); $('eu-error').hidden = false; }
   };
@@ -731,13 +783,20 @@ function confirmDeleteUser(u) {
 // ---------- admin: calendars ----------
 function drawCalendarList() {
   const list = [...state.calendars].sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.id.localeCompare(b.id));
-  $('cal-list').replaceChildren(...list.map((c) => h('li', { class: c.active === false ? 'archived' : '' },
-    h('span', {}, h('strong', {}, calendarLabel(c.id)), c.active === false ? ' — archived (hidden from staff)' : ''),
-    h('button', {
-      type: 'button', class: 'icon', onclick: async () => {
-        try { await api.setCalendarActive(c.id, c.active === false); toast(c.active === false ? 'Calendar restored.' : 'Calendar archived.'); } catch (x) { toast(friendly(x), 'err'); }
-      }
-    }, c.active === false ? 'Restore' : 'Archive'))));
+  $('cal-list').replaceChildren(...list.map((c) => {
+    const name = h('input', { type: 'text', class: 'cal-name-input', value: label(c.id), maxlength: 40, 'aria-label': `Name shown for ${c.id.toUpperCase()}` });
+    name.onchange = async () => {
+      try { await api.renameCalendar(c.id, name.value); toast('Name saved.'); } catch (x) { toast(friendly(x), 'err'); name.value = label(c.id); }
+    };
+    return h('li', { class: c.active === false ? 'archived' : '' },
+      h('span', {}, h('strong', {}, c.id.toUpperCase()), c.active === false ? ' — archived' : ''),
+      name,
+      h('button', {
+        type: 'button', class: 'icon', onclick: async () => {
+          try { await api.setCalendarActive(c.id, c.active === false); toast(c.active === false ? 'Calendar restored.' : 'Calendar archived.'); } catch (x) { toast(friendly(x), 'err'); }
+        }
+      }, c.active === false ? 'Restore' : 'Archive'));
+  }));
 }
 
 function openCalendars() { $('cal-error').hidden = true; drawCalendarList(); $('dlg-cals').showModal(); }
@@ -746,7 +805,7 @@ function openCalendars() { $('cal-error').hidden = true; drawCalendarList(); $('
 function drawCompanyList() {
   const msg = (m) => { const e = $('co-error'); e.textContent = m; e.hidden = !m; };
   const all = state.companyList;
-  $('cos-title').textContent = `Companies — ${calendarLabel(state.cal)}`;
+  $('cos-title').textContent = `Companies — ${label(state.cal)}`;
   if (!$('co-color').dataset.touched) $('co-color').value = nextCompanyColor(all);
   $('co-list').replaceChildren(...(all.length ? all.map((c) => {
     const name = h('input', { type: 'text', value: c.name, maxlength: 120, 'aria-label': 'Company name' });
@@ -783,7 +842,7 @@ function drawBlockedList() {
 
 function openBlocked() {
   const multi = state.multi && state.calendars.filter((c) => c.active !== false).length > 1;
-  $('bl-title').textContent = state.multi ? `Blocked dates — ${calendarLabel(state.cal)}` : 'Blocked dates';
+  $('bl-title').textContent = state.multi ? `Blocked dates — ${label(state.cal)}` : 'Blocked dates';
   $('bl-all-label').hidden = !multi; $('bl-all').checked = false;
   blockProblem(''); drawBlockedList(); $('dlg-blocked').showModal(); }
 
@@ -848,7 +907,7 @@ function editRecipient(r) {
 }
 
 function openNotify() {
-  $('nt-title').textContent = state.multi ? `Email alerts — ${calendarLabel(state.cal)}` : 'Email alerts';
+  $('nt-title').textContent = state.multi ? `Email alerts — ${label(state.cal)}` : 'Email alerts';
   $('nt-hour').replaceChildren(...Array.from({ length: 24 }, (_, i) => h('option', { value: String(i) }, `${String(i).padStart(2, '0')}:00`)));
   const s = state.notify;
   $('nt-new').checked = s.onNew; $('nt-day').checked = s.dayBefore; $('nt-two').checked = s.twoHours; $('nt-hour').value = String(s.dayBeforeHour);
@@ -963,8 +1022,9 @@ function wire() {
     try {
       const code = cleanCalendarCode($('cal-code').value);
       if (state.calendars.some((c) => c.id === code)) throw new Error('That calendar already exists.');
-      await api.createCalendar(code, Math.max(0, ...state.calendars.map((c) => c.order ?? 0)) + 1);
-      e.target.reset(); toast(`Calendar ${calendarLabel(code)} created.`);
+      const shown = $('cal-name').value.trim() || calendarLabel(code);
+      await api.createCalendar(code, Math.max(0, ...state.calendars.map((c) => c.order ?? 0)) + 1, $('cal-name').value);
+      e.target.reset(); toast(`Calendar ${shown} created.`);
     } catch (x) { err.textContent = friendly(x); err.hidden = false; }
   };
   $('btn-cos').onclick = openCompanies;
@@ -1027,9 +1087,11 @@ function wire() {
       await api.adminCreateUser({
         name: $('nu-name').value.trim(), email: $('nu-email').value,
         password: $('nu-pw').value, role: $('nu-role').value,
-        calendar: state.multi && $('nu-role').value === 'staff' ? $('nu-cal').value : undefined
+        calendar: state.multi && $('nu-role').value === 'staff' ? $('nu-cal').value : undefined,
+        calendars: state.multi && $('nu-role').value === 'cadmin'
+          ? [...$('nu-cals-list').querySelectorAll('input:checked')].map((i) => i.value) : undefined
       });
-      e.target.reset();
+      e.target.reset(); syncNewUserRole();
       toast('User created and activated.');
     } catch (x) { err.textContent = friendly(x); err.hidden = false; } finally { btn.disabled = false; btn.textContent = 'Create'; }
   };

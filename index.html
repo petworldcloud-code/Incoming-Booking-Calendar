@@ -223,6 +223,8 @@
     <form id="form-edituser" method="dialog">
       <h3>Edit company</h3>
       <label>Company name <input id="eu-name" type="text" maxlength="80" required></label>
+      <label id="eu-cal-label" hidden>Calendar <select id="eu-cal"></select></label>
+      <fieldset id="eu-cals" class="calpick" hidden><legend>Calendars this administrator runs</legend><div id="eu-cals-list"></div></fieldset>
       <p id="eu-username" class="meta"></p>
       <p id="eu-error" class="error" role="alert" hidden></p>
       <div class="dlg-actions">
@@ -257,6 +259,7 @@
       <input id="nu-pw" type="text" placeholder="Initial password (min 6)" minlength="6" required aria-label="Initial password" autocomplete="off">
       <select id="nu-role" aria-label="Role"><option value="user">Standard user</option><option value="admin">Administrator</option></select>
       <select id="nu-cal" aria-label="Calendar" hidden></select>
+      <fieldset id="nu-cals" class="calpick" hidden><legend>Calendars this administrator runs</legend><div id="nu-cals-list"></div></fieldset>
       <button class="primary" type="submit" id="nu-save">Create</button>
       <p id="nu-error" class="error" role="alert" hidden></p>
     </form>
@@ -268,9 +271,10 @@
   <!-- Admin: calendars -->
   <dialog id="dlg-cals">
     <div class="dlg-head"><h3>Calendars</h3><button class="ghost" id="cals-close" type="button">Close</button></div>
-    <p class="meta">Each calendar has its own bookings, companies, time slots, blocked dates and email alerts. The code can't be changed once created. Archiving hides a calendar from staff; its data is kept.</p>
+    <p class="meta">Each calendar has its own bookings, companies, time slots, blocked dates and email alerts. The code can't be changed once created, but the name shown can. Archiving hides a calendar from staff; its data is kept.</p>
     <form id="form-cal" class="blockform" autocomplete="off">
       <label>New calendar code <input id="cal-code" type="text" maxlength="10" placeholder="e.g. TG" required></label>
+      <label>Name shown (optional) <input id="cal-name" type="text" maxlength="40" placeholder="e.g. TG YFM"></label>
       <button class="primary" type="submit">Add calendar</button>
       <p id="cal-error" class="error" role="alert" hidden></p>
     </form>

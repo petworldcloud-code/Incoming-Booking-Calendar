@@ -387,3 +387,10 @@ details.gen .ghost { margin-top: 6px; }
 }
 @media (prefers-reduced-motion: reduce) { dialog[open], .toast { animation: none; } }
 @media (prefers-reduced-motion: no-preference) { .evt, .tab, button, tbody tr { transition: background .12s, border-color .12s, color .12s, box-shadow .12s; } }
+
+/* choose calendars (calendar administrators) */
+.calpick { border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; margin: 0; display: grid; gap: 6px; }
+.calpick legend { font-size: 13px; color: var(--muted); padding: 0 6px; }
+.calpick label { display: flex; align-items: center; gap: 8px; margin: 0; font-weight: 500; }
+.calpick input[type="checkbox"] { width: auto; margin: 0; }
+.cal-name-input { flex: 1; min-width: 0; }

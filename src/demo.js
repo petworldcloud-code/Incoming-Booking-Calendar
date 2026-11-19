@@ -4,14 +4,16 @@ import { todayISO, addDays } from './date-utils.js';
 import { cleanCompany, companyId } from './calendar-utils.js';
 import { cleanRecipient, cleanNotifySettings, DEFAULT_NOTIFY, MAX_RECIPIENTS } from './notify-utils.js';
 
-// ?as=tg opens the demo as TG staff; ?as=none as staff with no calendar. Default: admin.
+// ?as=tg opens the demo as TG staff; ?as=none as staff with no calendar; ?as=cadmin as administrator of TG and NF only. Default: admin.
 const asParam = new URLSearchParams(globalThis.location?.search || '').get('as');
 const me = asParam
   ? { uid: 'demo-staff', displayName: 'Demo Staff', email: 'staff@example.com' }
   : { uid: 'demo-admin', displayName: 'Demo Admin', email: 'demo@example.com' };
-const profile = asParam
-  ? { ...me, role: 'staff', status: 'active', ...(asParam === 'none' ? {} : { calendar: asParam }) }
-  : { ...me, role: 'admin', status: 'active' };
+const profile = asParam === 'cadmin'
+  ? { ...me, role: 'cadmin', status: 'active', calendars: ['tg', 'nf'] }
+  : asParam
+    ? { ...me, role: 'staff', status: 'active', ...(asParam === 'none' ? {} : { calendar: asParam }) }
+    : { ...me, role: 'admin', status: 'active' };
 const calendars = [
   { id: 'dim', name: 'DIM', order: 1, active: true }, { id: 'tg', name: 'TG', order: 2, active: true },
   { id: 'nf', name: 'NF', order: 3, active: true }, { id: 'pme', name: 'PME', order: 4, active: true }
@@ -30,7 +32,8 @@ let users = [
   { ...profile },
   { uid: 'u2', displayName: 'Pending Person', email: 'pending@example.com', role: 'user', status: 'pending' },
   { uid: 'u3', displayName: 'Aisyah (TG staff)', email: 'aisyah@example.com', role: 'staff', status: 'active', calendar: 'tg' },
-  { uid: 'u4', displayName: 'Lee (DIM staff)', email: 'lee@example.com', role: 'staff', status: 'active', calendar: 'dim' }
+  { uid: 'u4', displayName: 'Lee (DIM staff)', email: 'lee@example.com', role: 'staff', status: 'active', calendar: 'dim' },
+  { uid: 'u5', displayName: 'Nora (TG + NF admin)', email: 'nora@example.com', role: 'cadmin', status: 'active', calendars: ['tg', 'nf'] }
 ];
 const userSubs = new Set();
 let currentCal = null;
@@ -81,9 +84,10 @@ function sub(fn) { const run = () => fn(); subs.add(run); run(); return () => su
 export const api = {
   watchSession(cb) { setTimeout(() => cb({ state: 'active', user: me, profile }), 50); return () => {}; },
   login: async () => {}, logout: async () => {}, resetPassword: async () => {},
-  async adminCreateUser({ name, email, role, calendar }) {
+  async adminCreateUser({ name, email, role, calendar, calendars }) {
     if (role === 'staff' && !calendar) throw new Error('Choose which calendar this staff member uses.');
-    users.push({ uid: `u${users.length + 1}`, displayName: name, email, role, status: 'active', ...(calendar ? { calendar } : {}) });
+    if (role === 'cadmin' && !(calendars && calendars.length)) throw new Error('Tick at least one calendar for this administrator.');
+    users.push({ uid: `u${users.length + 1}`, displayName: name, email, role, status: 'active', ...(calendar ? { calendar } : {}), ...(role === 'cadmin' ? { calendars } : {}) });
     userSubs.forEach((f) => f()); return 'demo-new';
   },
   changePassword: async () => {},
@@ -97,7 +101,8 @@ export const api = {
     calSubs.add(run); setTimeout(run, 20);
     return () => calSubs.delete(run);
   },
-  async createCalendar(code, order) { calendars.push({ id: code, name: code.toUpperCase(), order, active: true }); companies[code] = []; calSubs.forEach((f) => f()); },
+  async createCalendar(code, order, name = '') { calendars.push({ id: code, name: String(name).trim() || code.toUpperCase(), order, active: true }); companies[code] = []; calSubs.forEach((f) => f()); },
+  async renameCalendar(id, name) { const c = calendars.find((x) => x.id === id); c.name = String(name).trim() || id.toUpperCase(); calSubs.forEach((f) => f()); },
   async setCalendarActive(id, active) { calendars.find((c) => c.id === id).active = active; calSubs.forEach((f) => f()); },
   watchCompanies(cb) {
     const run = () => cb((companies[currentCal || 'dim'] || []).map((c) => ({ ...c })));
@@ -147,7 +152,7 @@ export const api = {
   },
   async updateUser(uid, f) {
     const u = users.find((x) => x.uid === uid);
-    Object.assign(u, f); if ('calendar' in f && !f.calendar) delete u.calendar; userSubs.forEach((x) => x());
+    Object.assign(u, f); if ('calendar' in f && !f.calendar) delete u.calendar; if ('calendars' in f && !(f.calendars && f.calendars.length)) delete u.calendars; userSubs.forEach((x) => x());
   },
   async deleteUser(uid) { users = users.filter((u) => u.uid !== uid); userSubs.forEach((x) => x()); },
   getRetention: async () => ({ autoDeleteEnabled: false, retentionDays: 90 }),

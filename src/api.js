@@ -29,7 +29,7 @@ const real = {
   watchRecipients: notify.watchRecipients, saveRecipient: notify.saveRecipient, removeRecipient: notify.removeRecipient,
   watchNotifySettings: notify.watchNotifySettings, saveNotifySettings: notify.saveNotifySettings,
   setCalendar: calendars.setCalendar, getCalendar: calendars.getCalendar,
-  watchCalendars: calendars.watchCalendars, createCalendar: calendars.createCalendar, setCalendarActive: calendars.setCalendarActive,
+  watchCalendars: calendars.watchCalendars, createCalendar: calendars.createCalendar, renameCalendar: calendars.renameCalendar, setCalendarActive: calendars.setCalendarActive,
   watchCompanies: companies.watchCompanies, addCompany: companies.addCompany,
   updateCompany: companies.updateCompany, setCompanyActive: companies.setCompanyActive
 };
