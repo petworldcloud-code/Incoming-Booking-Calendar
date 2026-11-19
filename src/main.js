@@ -95,7 +95,7 @@ function authScreen(mode = 'login') {
         e.preventDefault();
         try { await api.login(e.target.email.value.trim(), e.target.pw.value); } catch (x) { fail(x); }
       }
-    }, field('Username', { name: 'email', type: 'text', required: true, autocomplete: 'username', autocapitalize: 'none', spellcheck: 'false' }),
+    }, field('Email or username', { name: 'email', type: 'text', required: true, autocomplete: 'username', autocapitalize: 'none', spellcheck: 'false' }),
     field('Password', { name: 'pw', type: 'password', required: true, autocomplete: 'current-password' }),
     h('p', { class: 'meta' }, 'Accounts are created by an administrator.'),
     err, h('button', { class: 'primary', type: 'submit' }, 'Log in'),
@@ -104,9 +104,15 @@ function authScreen(mode = 'login') {
     form = h('form', {
       onsubmit: async (e) => {
         e.preventDefault();
-        try { await api.resetPassword(e.target.email.value.trim()); toast('If that email is registered, a reset link was sent.'); authScreen('login'); } catch (x) { fail(x); }
+        const btn = e.target.querySelector('button[type=submit]'); err.hidden = true; btn.disabled = true; btn.textContent = 'Sending…';
+        try {
+          await api.resetPassword(e.target.email.value.trim());
+          toast('If that account has an email address, a reset link is on its way. Check your inbox and spam folder.');
+          authScreen('login');
+        } catch (x) { fail(x); btn.disabled = false; btn.textContent = 'Send reset link'; }
       }
-    }, field('Username (or email)', { name: 'email', type: 'text', required: true, autocapitalize: 'none' }), err,
+    }, field('Email or username', { name: 'email', type: 'text', required: true, autocapitalize: 'none', autocomplete: 'username' }),
+    h('p', { class: 'meta' }, 'We email a one-time link (it expires, and works once). Open it, type a new password, then log in here.'), err,
     h('button', { class: 'primary', type: 'submit' }, 'Send reset link'),
     h('div', { class: 'links' }, switchTo('login')));
   }
@@ -999,10 +1005,14 @@ function wire() {
     e.preventDefault();
     const err = $('pw-error'); err.hidden = true;
     if ($('pw-new').value !== $('pw-new2').value) { err.textContent = 'New passwords do not match.'; err.hidden = false; return; }
+    if ($('pw-new').value === $('pw-old').value) { err.textContent = 'Choose a new password that is different from the current one.'; err.hidden = false; return; }
     try {
       await api.changePassword($('pw-old').value, $('pw-new').value);
       $('dlg-password').close(); toast('Password changed.');
-    } catch (x) { err.textContent = friendly(x); err.hidden = false; }
+    } catch (x) {
+      err.textContent = x?.code === 'auth/invalid-credential' || x?.code === 'auth/wrong-password' ? 'The current password is not correct.' : friendly(x);
+      err.hidden = false;
+    }
   };
   $('btn-cals').onclick = openCalendars;
   $('cals-close').onclick = () => $('dlg-cals').close();
