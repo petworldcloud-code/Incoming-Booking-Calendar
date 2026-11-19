@@ -285,6 +285,7 @@ describe('checkAll()', () => {
     expect(sent.map((m) => [m.subject, m.to])).toEqual([
       ['[TG YFM] New booking: Shell - 2026-11-20', 'tg@x.co'], ['[TG YFM] New booking: Shell - 2026-11-20', 'tg2@x.co']]);
     expect(sent.every((m) => m.bcc === undefined)).toBe(true);
+    expect(sent.every((m) => m.name === '[TG YFM] Incoming Booking Calendar')).toBe(true); // sender: calendar + system name
     expect(sent[0].body).toContain('#tg');
     expect(w.get('calendars/tg/notifyLog/new_t1_2026-11-20_noslot').mailed).toBe(true);
 

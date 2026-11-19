@@ -143,6 +143,9 @@ function mailText(heading, b, cal) {
   return heading + '\n\n' + lines.join('\n') + '\n\nOpen the booking calendar: ' + linkFor(cal) + '\n';
 }
 
+/** Sender name: which calendar + the system name, e.g. "[TG YFM] Incoming Booking Calendar". */
+function senderFor(cal) { return (cal ? '[' + calLabel(cal) + '] ' : '') + SENDER_NAME; }
+
 function subjectFor(kind, b, cal) {
   var when = b.bookingDate + (b.timeSlot ? ' ' + slotText(b.timeSlot) : '');
   var tag = cal ? '[' + calLabel(cal) + '] ' : '';
@@ -311,7 +314,7 @@ function sendOnce(cal, kind, b, recipients) {
   var sent = 0, failed = [];
   to.forEach(function (addr) {
     try {
-      MailApp.sendEmail({ to: addr, subject: subject, body: body, htmlBody: htmlBody, name: SENDER_NAME });
+      MailApp.sendEmail({ to: addr, subject: subject, body: body, htmlBody: htmlBody, name: senderFor(cal) });
       sent++;
     } catch (e) {
       failed.push(addr + ' (' + e + ')');
