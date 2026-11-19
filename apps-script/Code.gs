@@ -10,7 +10,7 @@
  * to the addresses configured in the app (Email alerts), filtered by company.
  *
  * Several calendars (DIM, TG, NF, PME): every active calendar under calendars/{code} is checked with its own
- * recipients, settings and log; subjects start with the code, e.g. "[TG] New booking: ...". Before the data is
+ * recipients, settings and log; subjects start with the code, e.g. "[TG] Incoming Booking Calendar - New booking: ...". Before the data is
  * moved (no calendars exist yet) it works on the old single-calendar paths exactly as before.
  *
  * migrateToCalendars() (bottom of this file) copies the old single-calendar data into calendars/dim.
@@ -148,7 +148,7 @@ function senderFor(cal) { return (cal ? '[' + calLabel(cal) + '] ' : '') + SENDE
 
 function subjectFor(kind, b, cal) {
   var when = b.bookingDate + (b.timeSlot ? ' ' + slotText(b.timeSlot) : '');
-  var tag = cal ? '[' + calLabel(cal) + '] ' : '';
+  var tag = (cal ? '[' + calLabel(cal) + '] ' : '') + SENDER_NAME + ' - ';
   if (kind === 'new') return tag + 'New booking: ' + b.eventName + ' - ' + when;
   if (kind === 'day') return tag + 'Reminder - tomorrow: ' + b.eventName + ' - ' + when;
   return tag + 'Reminder - in 2 hours: ' + b.eventName + ' - ' + when;

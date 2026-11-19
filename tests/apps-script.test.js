@@ -174,8 +174,8 @@ describe('Code.gs company helpers match the app', () => {
   });
   it('tags subjects and links with the calendar', () => {
     const b = { bookingDate: '2026-11-12', eventName: 'Shell', timeSlot: '08:00-10:00' };
-    expect(lib.subjectFor('new', b, 'tg')).toBe('[TG] New booking: Shell - 2026-11-12 08:00 – 10:00');
-    expect(lib.subjectFor('new', b)).toBe('New booking: Shell - 2026-11-12 08:00 – 10:00');
+    expect(lib.subjectFor('new', b, 'tg')).toBe('[TG] Incoming Booking Calendar - New booking: Shell - 2026-11-12 08:00 – 10:00');
+    expect(lib.subjectFor('new', b)).toBe('Incoming Booking Calendar - New booking: Shell - 2026-11-12 08:00 – 10:00');
     expect(lib.mailText('Hi', b, 'tg')).toContain('Calendar: TG');
     expect(lib.mailText('Hi', { ...b, poNumber: 'PO-123' }, 'tg')).toContain('PO number: PO-123');
     expect(lib.mailText('Hi', b, 'tg')).not.toContain('PO number');
@@ -250,8 +250,8 @@ describe('checkAll()', () => {
     const w = makeWorld(); seedOld(w);
     w.lib.checkAll();
     // b1's "new" mail is already in the log; b2 (Shell) is new -> only the All-companies address
-    const news = w.mails.filter((m) => m.subject.startsWith('New booking'));
-    expect(news.map((m) => [m.subject, m.to])).toEqual([['New booking: Shell  - 2026-11-12 08:00 – 10:00', 'all@x.co']]);
+    const news = w.mails.filter((m) => m.subject.startsWith('Incoming Booking Calendar - New booking'));
+    expect(news.map((m) => [m.subject, m.to])).toEqual([['Incoming Booking Calendar - New booking: Shell  - 2026-11-12 08:00 – 10:00', 'all@x.co']]);
     expect(news.every((m) => m.bcc === undefined && m.to !== 'owner@x.co')).toBe(true); // no copy to the owner
     expect(w.get('notifyLog/new_b2_2026-11-12_08001000').mailed).toBe(true);
   });
@@ -283,7 +283,7 @@ describe('checkAll()', () => {
     const sent = w.mails.slice(mark).filter((m) => /New booking/.test(m.subject));
     // one separate mail per person, addressed only to them (no Bcc, nothing to the owner)
     expect(sent.map((m) => [m.subject, m.to])).toEqual([
-      ['[TG YFM] New booking: Shell - 2026-11-20', 'tg@x.co'], ['[TG YFM] New booking: Shell - 2026-11-20', 'tg2@x.co']]);
+      ['[TG YFM] Incoming Booking Calendar - New booking: Shell - 2026-11-20', 'tg@x.co'], ['[TG YFM] Incoming Booking Calendar - New booking: Shell - 2026-11-20', 'tg2@x.co']]);
     expect(sent.every((m) => m.bcc === undefined)).toBe(true);
     expect(sent.every((m) => m.name === '[TG YFM] Incoming Booking Calendar')).toBe(true); // sender: calendar + system name
     expect(sent[0].body).toContain('#tg');
