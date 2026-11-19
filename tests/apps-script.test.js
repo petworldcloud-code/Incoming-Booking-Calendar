@@ -251,7 +251,8 @@ describe('checkAll()', () => {
     w.lib.checkAll();
     // b1's "new" mail is already in the log; b2 (Shell) is new -> only the All-companies address
     const news = w.mails.filter((m) => m.subject.startsWith('New booking'));
-    expect(news.map((m) => [m.subject, m.bcc])).toEqual([['New booking: Shell  - 2026-11-12 08:00 – 10:00', 'all@x.co']]);
+    expect(news.map((m) => [m.subject, m.to])).toEqual([['New booking: Shell  - 2026-11-12 08:00 – 10:00', 'all@x.co']]);
+    expect(news.every((m) => m.bcc === undefined && m.to !== 'owner@x.co')).toBe(true); // no copy to the owner
     expect(w.get('notifyLog/new_b2_2026-11-12_08001000').mailed).toBe(true);
   });
 
@@ -267,6 +268,7 @@ describe('checkAll()', () => {
     w.store.set('calendars/tg', { name: S('TG'), order: I(2), active: Bo(true) });
     w.store.set('calendars/tg/companies/shell', { name: S('Shell'), color: S('#2563eb'), active: Bo(true) });
     w.store.set('calendars/tg/notifyRecipients/tg@x.co', { email: S('tg@x.co'), allCompanies: Bo(false), companies: A([S('shell')]) });
+    w.store.set('calendars/tg/notifyRecipients/tg2@x.co', { email: S('tg2@x.co'), allCompanies: Bo(true), companies: A([]) });
     w.store.set('calendars/tg/bookings/t1', {
       bookingDate: S('2026-11-20'), eventName: S('Shell'), companyId: S('shell'), truckType: S('5ton'), truckCount: I(1),
       createdBy: S('tina'), createdByName: S('Tina'), createdAt: T('2026-11-11T01:00:00Z'), updatedAt: T('2026-11-11T01:00:00Z')
@@ -279,11 +281,14 @@ describe('checkAll()', () => {
     const mark = w.mails.length;
     w.lib.checkAll();
     const sent = w.mails.slice(mark).filter((m) => /New booking/.test(m.subject));
-    expect(sent.map((m) => [m.subject, m.bcc])).toEqual([['[TG] New booking: Shell - 2026-11-20', 'tg@x.co']]);
+    // one separate mail per person, addressed only to them (no Bcc, nothing to the owner)
+    expect(sent.map((m) => [m.subject, m.to])).toEqual([
+      ['[TG] New booking: Shell - 2026-11-20', 'tg@x.co'], ['[TG] New booking: Shell - 2026-11-20', 'tg2@x.co']]);
+    expect(sent.every((m) => m.bcc === undefined)).toBe(true);
     expect(sent[0].body).toContain('#tg');
     expect(w.get('calendars/tg/notifyLog/new_t1_2026-11-20_noslot').mailed).toBe(true);
 
     w.lib.checkAll();
-    expect(w.mails.length).toBe(mark + 1); // sent once
+    expect(w.mails.length).toBe(mark + 2); // each person got it once
   });
 });

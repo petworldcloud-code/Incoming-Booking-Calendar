@@ -17,7 +17,7 @@
  * Run migrateDryRun() first to see the counts without writing anything. See README 7.9.
  *
  * Nothing secret is stored here: it uses the signed-in owner's Google token. Setup steps: README section 7.3d.
- * Mail goes out from the owner's Gmail (limit: about 100 recipients a day on a free Google account;
+ * Mail goes out from the owner's Gmail, one separate mail per recipient (limit: about 100 recipients a day on a free Google account;
  * each address counts, so keep the list short).
  */
 
@@ -301,16 +301,23 @@ function sendOnce(cal, kind, b, recipients) {
   if (alreadyDone(base, key)) return 0;
   var to = recipientsFor(recipients, b.eventName, b.companyId);
   if (!to.length) { markDone(base, key, false); return 0; }
-  MailApp.sendEmail({
-    to: Session.getEffectiveUser().getEmail(), // the owner's address; everybody else is in Bcc so addresses stay private
-    bcc: to.join(','),
-    subject: subjectFor(kind, b, cal),
-    body: mailText(headingFor(kind), b, cal),
-    htmlBody: mailBody(headingFor(kind), b, cal),
-    name: SENDER_NAME
+  // One mail per person, addressed only to them: nobody sees the other addresses, and the owner
+  // gets a mail only when the owner's own address is on the list.
+  var subject = subjectFor(kind, b, cal), body = mailText(headingFor(kind), b, cal), htmlBody = mailBody(headingFor(kind), b, cal);
+  var sent = 0, failed = [];
+  to.forEach(function (addr) {
+    try {
+      MailApp.sendEmail({ to: addr, subject: subject, body: body, htmlBody: htmlBody, name: SENDER_NAME });
+      sent++;
+    } catch (e) {
+      failed.push(addr + ' (' + e + ')');
+    }
   });
+  // Nothing went out: throw so the next run tries again. Some went out: mark it done so nobody gets it twice.
+  if (!sent) throw new Error('No mail could be sent: ' + failed.join('; '));
   markDone(base, key, true);
-  return to.length;
+  if (failed.length) console.error('Mail not delivered to: ' + failed.join('; '));
+  return sent;
 }
 
 /** Runs every 5 minutes (installed by setup()). */
