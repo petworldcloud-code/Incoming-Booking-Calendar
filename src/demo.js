@@ -87,7 +87,7 @@ export const api = {
   async adminCreateUser({ name, email, role, calendar, calendars }) {
     if (role === 'staff' && !calendar) throw new Error('Choose which calendar this staff member uses.');
     if (role === 'cadmin' && !(calendars && calendars.length)) throw new Error('Tick at least one calendar for this administrator.');
-    users.push({ uid: `u${users.length + 1}`, displayName: name, email, role, status: 'active', ...(calendar ? { calendar } : {}), ...(role === 'cadmin' ? { calendars } : {}) });
+    users.push({ uid: `u${users.length + 1}`, displayName: name, email, role, status: 'active', ...(calendar ? { calendar } : {}), ...(calendars && calendars.length && (role === 'cadmin' || calendars.length > 1) ? { calendars } : {}) });
     userSubs.forEach((f) => f()); return 'demo-new';
   },
   changePassword: async () => {},

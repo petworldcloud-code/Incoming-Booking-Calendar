@@ -83,7 +83,8 @@ export async function adminCreateUser({ name, email, password, role, calendar, c
     await updateProfile(cred.user, { displayName: name });
     await createUserProfile(cred.user.uid, {
       displayName: name, username: uname, email: authEmail, role, status: 'active', calendar: role === 'staff' ? calendar : undefined,
-      calendars: role === 'cadmin' ? calendars : undefined
+      // calendar administrators always have a list; staff only when they use more than one calendar
+      calendars: role === 'cadmin' || (role === 'staff' && calendars && calendars.length > 1) ? calendars : undefined
     });
   } finally {
     await signOut(second);

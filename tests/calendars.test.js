@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   cleanCalendarCode, calendarBase, canUseCalendar, visibleCalendars, pickCalendar,
   nextCompanyColor, cleanCompany, companyId, COMPANY_COLORS,
-  calendarName, canManageCalendar, adminCalendars, roleChange, isFullAdmin
+  calendarName, canManageCalendar, adminCalendars, userCalendars, roleChange, isFullAdmin
 } from '../src/calendar-utils.js';
 
 const admin = { role: 'admin', status: 'active' };
@@ -106,8 +106,9 @@ describe('role changes in the users table', () => {
   it('staff to calendar admin keeps their calendar as the first one', () => {
     expect(roleChange(tgStaff, 'cadmin')).toEqual({ role: 'cadmin', calendars: ['tg'] });
   });
-  it('calendar admin to staff uses their first calendar', () => {
-    expect(roleChange(cadmin, 'staff')).toEqual({ role: 'staff', calendar: 'tgyfm' });
+  it('calendar admin to staff keeps all their calendars', () => {
+    expect(roleChange(cadmin, 'staff')).toEqual({ role: 'staff', calendar: 'tgyfm', calendars: ['tgyfm', 'tgmms'] });
+    expect(roleChange({ ...cadmin, calendars: ['tg'] }, 'staff')).toEqual({ role: 'staff', calendar: 'tg', calendars: [] });
   });
   it('asks for a choice when there is no calendar to carry over', () => {
     expect(roleChange(admin, 'staff')).toBe(null);
@@ -123,5 +124,22 @@ describe('calendar names', () => {
     expect(calendarName('pme', list)).toBe('PME');
     expect(calendarName('zz', list)).toBe('ZZ');
     expect(calendarName('tg', undefined)).toBe('TG');
+  });
+});
+
+describe('staff with several calendars', () => {
+  const both = { role: 'staff', status: 'active', calendar: 'tgyfm', calendars: ['tgyfm', 'tgmms'] };
+  it('open each of their calendars, no others, and cannot manage any', () => {
+    expect(canUseCalendar(both, 'tgyfm')).toBe(true);
+    expect(canUseCalendar(both, 'tgmms')).toBe(true);
+    expect(canUseCalendar(both, 'dim')).toBe(false);
+    expect(canManageCalendar(both, 'tgmms')).toBe(false);
+  });
+  it('lists their calendars once, in the saved order', () => {
+    expect(userCalendars(both)).toEqual(['tgyfm', 'tgmms']);
+    expect(userCalendars({ role: 'staff', calendar: 'tg' })).toEqual(['tg']);
+    expect(userCalendars({ role: 'staff' })).toEqual([]);
+    expect(userCalendars(admin)).toEqual([]);
+    expect(visibleCalendars(both, [{ id: 'tgmms', order: 6 }, { id: 'tgyfm', order: 5 }, { id: 'dim', order: 1 }]).map((c) => c.id)).toEqual(['tgyfm', 'tgmms']);
   });
 });

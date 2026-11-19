@@ -46,6 +46,7 @@ function suite(label, rulesFile, { legacyOpen }) {
         for (const [c, order] of [['dim', 1], ['tg', 2]]) await setDoc(doc(db, 'calendars', c), { name: c.toUpperCase(), order, active: true, createdAt: T0, updatedAt: T0 });
         await setDoc(doc(db, 'calendars', 'nf'), { name: 'NF', order: 3, active: false, createdAt: T0, updatedAt: T0 });
         await user('nina', 'staff', 'active', 'nf');   // staff of an archived calendar
+        await setDoc(doc(db, 'users', 'tess'), { displayName: 'tess', email: 'tess@x.com', role: 'staff', status: 'active', calendar: 'tg', calendars: ['tg', 'dim'], createdAt: T0, updatedAt: T0 });
         for (const [uid, cals] of [['carl', ['tg']], ['cora', ['dim']], ['cat', ['tg', 'dim']]]) { // calendar administrators
           await setDoc(doc(db, 'users', uid), { displayName: uid, email: `${uid}@x.com`, role: 'cadmin', status: 'active', calendars: cals, createdAt: T0, updatedAt: T0 });
         }
@@ -292,6 +293,21 @@ function suite(label, rulesFile, { legacyOpen }) {
       it('staff read only their own profile', async () => {
         await assertSucceeds(getDoc(doc(ctx('tina'), 'users', 'tina')));
         await assertFails(getDoc(doc(ctx('tina'), 'users', 'tom')));
+      });
+    });
+
+    describe('staff with several calendars', () => {
+      it('read and book in each of their calendars, but not in others or as a manager', async () => {
+        await assertSucceeds(getDoc(doc(ctx('tess'), B('tg', 'b1'))));
+        await assertSucceeds(getDocs(collection(ctx('tess'), 'calendars/dim/bookings')));
+        await assertSucceeds(setDoc(doc(ctx('tess'), B('tg', 't1')), booking('tess')));
+        await assertSucceeds(setDoc(doc(ctx('tess'), B('dim', 't2')), booking('tess', { eventName: 'Petronas', companyId: 'petronas' })));
+        await assertFails(updateDoc(doc(ctx('tess'), B('tg', 'b1')), upd('tess'))); // Tina's booking
+        await assertFails(setDoc(doc(ctx('tess'), 'calendars/dim/companies', 'x1'), { name: 'X', color: '#aabbcc', active: true, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }));
+        await assertFails(getDoc(doc(ctx('tess'), B('nf', 'x'))));
+      });
+      it('admin can give staff a list of calendars', async () => {
+        await assertSucceeds(updateDoc(doc(ctx('admin'), 'users', 'tom'), { calendar: 'tg', calendars: ['tg', 'dim'], updatedAt: serverTimestamp() }));
       });
     });
 

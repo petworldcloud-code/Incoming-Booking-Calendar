@@ -36,12 +36,22 @@ export function calendarBase(cal) {
   return cal ? ['calendars', cal] : [];
 }
 
-/** Who may open a calendar: admins any; calendar admins theirs; active staff only the one on their profile. */
+/**
+ * Calendars a staff member or calendar administrator belongs to. Staff have `calendar` (the first one) and,
+ * when they use several, `calendars` (the full list); calendar administrators have `calendars`.
+ */
+export function userCalendars(profile) {
+  if (!profile || profile.role === 'admin') return [];
+  if (profile.role === 'cadmin') return adminCalendars(profile);
+  const extra = Array.isArray(profile.calendars) ? profile.calendars : [];
+  return [...new Set([profile.calendar, ...extra].filter((c) => typeof c === 'string' && c))];
+}
+
+/** Who may open a calendar: admins any; calendar admins and staff the ones on their profile. */
 export function canUseCalendar(profile, cal) {
   if (!profile || profile.status !== 'active' || !cal) return false;
   if (profile.role === 'admin') return true;
-  if (profile.role === 'cadmin') return adminCalendars(profile).includes(cal);
-  return profile.calendar === cal;
+  return userCalendars(profile).includes(cal);
 }
 
 /** Who may change a calendar's bookings, companies, time slots, blocked dates and email alerts. */
@@ -53,12 +63,12 @@ export function canManageCalendar(profile, cal) {
 
 /**
  * Fields to save when someone's role changes in the Users table, or null when more information is needed first.
- * Switching to a calendar admin needs at least one calendar, staff needs exactly one.
+ * Staff and calendar admins need at least one calendar.
  */
 export function roleChange(user, role) {
-  const mine = user.role === 'cadmin' ? adminCalendars(user) : (user.calendar ? [user.calendar] : []);
+  const mine = userCalendars({ role: user.role === 'cadmin' ? 'cadmin' : 'staff', calendar: user.calendar, calendars: user.calendars });
   if (role === 'admin') return { role };
-  if (role === 'staff') return mine.length ? { role, calendar: mine[0] } : null;
+  if (role === 'staff') return mine.length ? { role, calendar: mine[0], calendars: mine.length > 1 ? mine : [] } : null;
   if (role === 'cadmin') return mine.length ? { role, calendars: mine } : null;
   return null;
 }

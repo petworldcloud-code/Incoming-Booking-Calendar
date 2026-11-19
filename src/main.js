@@ -5,7 +5,7 @@ import { vehicleOf, vehicleText, palletText, vehicleFields, vehicleProblem } fro
 import { slotLabel, slotStart, makeSlot, cleanSlots, generateSlots, MAX_SLOTS } from './slot-utils.js';
 import { scopeText, DEFAULT_NOTIFY } from './notify-utils.js';
 import {
-  pickCalendar, visibleCalendars, calendarLabel, calendarName, canManageCalendar, adminCalendars, roleChange,
+  pickCalendar, visibleCalendars, calendarLabel, calendarName, canManageCalendar, adminCalendars, userCalendars, roleChange,
   nextCompanyColor, COLOR_RE, cleanCalendarCode
 } from './calendar-utils.js';
 import {
@@ -257,7 +257,7 @@ function drawRole() {
   if (!p) return;
   $('user-role').textContent = p.role === 'admin' ? 'Administrator'
     : p.role === 'cadmin' ? `Admin · ${adminCalendars(p).map((c) => label(c)).join(', ')}`
-    : state.multi && p.calendar ? `Staff · ${label(p.calendar)}` : 'Standard user';
+    : state.multi && userCalendars(p).length ? `Staff · ${userCalendars(p).map((c) => label(c)).join(', ')}` : 'Standard user';
 }
 
 /** Everything that belongs to one calendar: bookings, time slots, blocked dates, email alerts. */
@@ -643,9 +643,8 @@ let usersHelpLegacy = '';
 /** Show the calendar choice that fits the role picked in the "Add" form. */
 function syncNewUserRole() {
   const r = $('nu-role').value;
-  const staff = state.multi && r === 'staff';
-  $('nu-cal').hidden = !staff; $('nu-cal').required = staff;
-  $('nu-cals').hidden = !(state.multi && r === 'cadmin');
+  $('nu-cal').hidden = true; $('nu-cal').required = false; // the single dropdown is no longer used
+  $('nu-cals').hidden = !(state.multi && (r === 'staff' || r === 'cadmin'));
 }
 
 function setupUsersDialog() {
@@ -657,7 +656,7 @@ function setupUsersDialog() {
   $('nu-email').placeholder = multi ? 'Email (they log in with it)' : 'Email (optional, enables password reset)';
   $('nu-email').required = multi;
   $('nu-role').replaceChildren(...(multi
-    ? [h('option', { value: 'staff' }, 'Staff (one calendar)'),
+    ? [h('option', { value: 'staff' }, 'Staff (chosen calendars)'),
       h('option', { value: 'cadmin' }, 'Calendar administrator (chosen calendars)'),
       h('option', { value: 'admin' }, 'Administrator (all calendars, users, settings)')]
     : [h('option', { value: 'user' }, 'Standard user'), h('option', { value: 'admin' }, 'Administrator')]));
@@ -670,7 +669,7 @@ function setupUsersDialog() {
     ...state.calendars.map((c) => h('option', { value: c.id }, label(c.id))), h('option', { value: '-' }, 'No calendar'));
   $('users-filter').onchange = () => drawUsersTable();
   $('users-help').textContent = multi
-    ? 'Staff log in with their email and the initial password you set, and only see the calendar chosen here. A calendar administrator also manages the chosen calendars (bookings, companies, time slots, blocked dates, email alerts) but cannot add calendars or users. An administrator manages everything. Change a person\'s role or calendar in the table; use Edit to choose a calendar administrator\'s calendars. Set Status to "suspended" to block someone. Removing a login completely is done in the Firebase Console.'
+    ? 'Staff log in with their email and the initial password you set, and only see the calendars ticked for them. A calendar administrator also manages the chosen calendars (bookings, companies, time slots, blocked dates, email alerts) but cannot add calendars or users. An administrator manages everything. Change a person\'s role in the table; use Edit to change their calendars. Set Status to "suspended" to block someone. Removing a login completely is done in the Firebase Console.'
     : usersHelpLegacy;
   $('users-head').replaceChildren(h('tr', {}, ...(multi
     ? ['Name', 'Email', 'Role', 'Calendar', 'Status', 'Actions'] : ['Company', 'Username', 'Role', 'Status', 'Actions']).map((t) => h('th', {}, t))));
@@ -681,7 +680,7 @@ function drawUsersTable() {
   const multi = state.multi;
   const f = multi ? $('users-filter').value : '*';
   const list = usersList.filter((u) => f === '*'
-    || (f === '-' ? !u.calendar && roleOf(u) === 'staff' : roleOf(u) === 'cadmin' ? adminCalendars(u).includes(f) : u.calendar === f));
+    || (f === '-' ? !userCalendars(u).length && roleOf(u) === 'staff' : userCalendars(u).includes(f)));
   $('users-rows').replaceChildren(...list.map((u) => {
     const self = u.uid === state.session.user.uid;
     const sel = (key, opts, value = u[key]) => {
@@ -702,20 +701,12 @@ function drawUsersTable() {
     roleSel.onchange = async () => {
       const next = roleSel.value, fields = roleChange(u, next);
       roleSel.value = role;
-      if (!fields) { openEditUser(u, next); return; } // needs a calendar (or several) chosen first
+      if (!fields) { openEditUser(u, next); return; } // needs at least one calendar chosen first
       try { await api.updateUser(u.uid, fields); toast('Role changed.'); } catch (x) { toast(friendly(x), 'err'); }
-    };
-    const calSel = h('select', { 'aria-label': `Calendar for ${u.displayName}`, disabled: self },
-      h('option', { value: '' }, 'None'),
-      ...state.calendars.map((c) => h('option', { value: c.id }, label(c.id))));
-    calSel.value = u.calendar || '';
-    calSel.onchange = async () => {
-      try { await api.updateUser(u.uid, { calendar: calSel.value }); toast('Calendar changed.'); }
-      catch (x) { toast(friendly(x), 'err'); calSel.value = u.calendar || ''; }
     };
     return h('tr', {}, h('td', {}, u.displayName), h('td', {}, u.email?.endsWith('@dim-calendar.local') ? (u.username || '—') : (u.email || '—')),
       h('td', {}, roleSel),
-      h('td', {}, role === 'admin' ? 'All' : role === 'cadmin' ? (adminCalendars(u).map((c) => label(c)).join(', ') || 'None') : calSel),
+      h('td', {}, role === 'admin' ? 'All' : (userCalendars(u).map((c) => label(c)).join(', ') || 'None')),
       h('td', {}, sel('status', ['pending', 'active', 'suspended'])), acts);
   }));
 }
@@ -731,19 +722,18 @@ const usernameOf = (u) => u.username || u.displayName.trim().toLowerCase().repla
 
 /**
  * makeRole: set when the table asked for a role change that needs a choice first
- * ('cadmin' = tick the calendars, 'staff' = pick the one calendar).
+ * ('staff' or 'cadmin' = tick the calendars first).
  */
 function openEditUser(u, makeRole = null) {
-  const cadmin = state.multi && (makeRole ? makeRole === 'cadmin' : roleOf(u) === 'cadmin');
-  const needCal = state.multi && makeRole === 'staff';
-  const chosen = new Set(u.role === 'cadmin' ? adminCalendars(u) : (u.calendar ? [u.calendar] : []));
+  const role = makeRole || roleOf(u);
+  const pick = state.multi && (role === 'staff' || role === 'cadmin');
+  const chosen = new Set(userCalendars(u));
   $('eu-name').value = u.displayName;
   $('eu-name').parentElement.firstChild.textContent = state.multi ? 'Full name ' : 'Company name ';
-  $('eu-cals').hidden = !cadmin;
+  $('eu-cals').hidden = !pick;
   $('eu-cals-list').replaceChildren(...state.calendars.filter((c) => c.active !== false || chosen.has(c.id))
     .map((c) => h('label', {}, h('input', { type: 'checkbox', value: c.id, checked: chosen.has(c.id) }), label(c.id))));
-  $('eu-cal-label').hidden = !needCal; $('eu-cal').required = needCal;
-  $('eu-cal').replaceChildren(h('option', { value: '' }, 'Calendar…'), ...state.calendars.filter((c) => c.active !== false).map((c) => h('option', { value: c.id }, label(c.id))));
+  $('eu-cal-label').hidden = true; $('eu-cal').required = false; // the single dropdown is no longer used
   $('dlg-edituser').querySelector('h3').textContent = !state.multi ? 'Edit company' : makeRole ? 'Choose calendars' : 'Edit person';
   $('eu-username').textContent = state.multi ? 'The login email does not change.' : `Username stays "${usernameOf(u)}" (renaming the company does not change the login).`;
   $('eu-error').hidden = true;
@@ -754,15 +744,15 @@ function openEditUser(u, makeRole = null) {
     try {
       // Keep the existing username when the display name changes.
       const fields = { displayName: name, ...(u.username || state.multi ? {} : { username: usernameOf(u) }) };
-      if (cadmin) {
+      if (pick) {
         const picked = [...$('eu-cals-list').querySelectorAll('input:checked')].map((i) => i.value);
         if (!picked.length) throw new Error('Tick at least one calendar.');
-        fields.calendars = picked;
-        if (makeRole === 'cadmin') fields.role = 'cadmin';
+        if (role === 'cadmin') fields.calendars = picked;
+        else { fields.calendar = picked[0]; fields.calendars = picked.length > 1 ? picked : []; } // staff: first one + the full list when several
+        if (makeRole) fields.role = role;
       }
-      if (needCal) { fields.role = 'staff'; fields.calendar = $('eu-cal').value; }
       await api.updateUser(u.uid, fields);
-      $('dlg-edituser').close(); toast(state.multi ? 'Name updated.' : 'Company updated.');
+      $('dlg-edituser').close(); toast(state.multi ? 'Saved.' : 'Company updated.');
     } catch (x) { $('eu-error').textContent = friendly(x); $('eu-error').hidden = false; }
   };
   $('dlg-edituser').showModal();
@@ -1083,13 +1073,15 @@ function wire() {
     e.preventDefault();
     const err = $('nu-error'); const btn = $('nu-save');
     err.hidden = true; btn.disabled = true; btn.textContent = 'Creating…';
+    const role = $('nu-role').value;
+    const picked = state.multi && (role === 'staff' || role === 'cadmin')
+      ? [...$('nu-cals-list').querySelectorAll('input:checked')].map((i) => i.value) : [];
     try {
       await api.adminCreateUser({
         name: $('nu-name').value.trim(), email: $('nu-email').value,
         password: $('nu-pw').value, role: $('nu-role').value,
-        calendar: state.multi && $('nu-role').value === 'staff' ? $('nu-cal').value : undefined,
-        calendars: state.multi && $('nu-role').value === 'cadmin'
-          ? [...$('nu-cals-list').querySelectorAll('input:checked')].map((i) => i.value) : undefined
+        calendar: state.multi && $('nu-role').value === 'staff' ? picked[0] : undefined,
+        calendars: picked.length ? picked : undefined
       });
       e.target.reset(); syncNewUserRole();
       toast('User created and activated.');
