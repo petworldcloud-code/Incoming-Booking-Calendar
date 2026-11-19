@@ -570,3 +570,6 @@ input, select, textarea { border-color: var(--border-strong); box-shadow: inset 
   }
 }
 /* ===== END GLASS THEME ===== */
+
+/* "check your spam folder" notice on the reset confirmation screen */
+.card .notice { background: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn-text); border-radius: var(--radius-sm); padding: 10px 12px; text-align: left; font-size: .9rem; margin: 0; }

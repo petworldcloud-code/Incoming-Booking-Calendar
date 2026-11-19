@@ -107,12 +107,15 @@ function authScreen(mode = 'login') {
         const btn = e.target.querySelector('button[type=submit]'); err.hidden = true; btn.disabled = true; btn.textContent = 'Sending…';
         try {
           await api.resetPassword(e.target.email.value.trim());
-          toast('If that account has an email address, a reset link is on its way. Check your inbox and spam folder.');
-          authScreen('login');
+          showScreen('Check your email', [
+            h('p', {}, 'If that account has an email address, we have sent it a link to set a new password.'),
+            h('p', { class: 'notice' }, h('strong', {}, 'Please also check your Junk / Spam folder.'), ' The email can take a few minutes and often lands there the first time. Mark it as Not spam.'),
+            h('p', { class: 'meta' }, 'The link works once and expires soon. Open it, type a new password, then log in here.'),
+            h('button', { class: 'primary', type: 'button', onclick: () => authScreen('login') }, 'Back to log in')]);
         } catch (x) { fail(x); btn.disabled = false; btn.textContent = 'Send reset link'; }
       }
     }, field('Email or username', { name: 'email', type: 'text', required: true, autocapitalize: 'none', autocomplete: 'username' }),
-    h('p', { class: 'meta' }, 'We email a one-time link (it expires, and works once). Open it, type a new password, then log in here.'), err,
+    h('p', { class: 'meta' }, 'We email a one-time link (it expires, and works once). Open it, type a new password, then log in here. If the email does not arrive, check your Junk / Spam folder.'), err,
     h('button', { class: 'primary', type: 'submit' }, 'Send reset link'),
     h('div', { class: 'links' }, switchTo('login')));
   }
