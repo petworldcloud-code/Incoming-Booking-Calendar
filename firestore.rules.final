@@ -108,7 +108,7 @@ service cloud.firestore {
         && (!('plateNumber' in d) || (d.plateNumber is string && d.plateNumber.size() <= 100))
         && (!('poNumber' in d) || (d.poNumber is string && d.poNumber.size() <= 60))
         && d.truckCount is int && d.truckCount >= 1 && d.truckCount <= 6
-        && (!('attachments' in d) || (d.attachments is list && d.attachments.size() <= 5))
+        && (!('attachments' in d) || d.attachments is list) // no limit on how many files
         && d.createdByName is string && d.createdByName.size() <= 80
         && d.updatedByName is string && d.updatedByName.size() <= 80;
     }

@@ -1,6 +1,6 @@
 import { api, DEMO, CONFIGURED } from './api.js';
 import { renderCalendar, h } from './calendar.js';
-import { prepareFile, base64ToBlobUrl, formatSize, MAX_FILES } from './attachments.js';
+import { prepareFile, base64ToBlobUrl, formatSize, MAX_SAVE_BYTES } from './attachments.js';
 import { vehicleOf, vehicleText, palletText, vehicleFields, vehicleProblem } from './booking-utils.js';
 import { slotLabel, slotStart, makeSlot, cleanSlots, generateSlots, MAX_SLOTS } from './slot-utils.js';
 import { scopeText, DEFAULT_NOTIFY } from './notify-utils.js';
@@ -570,10 +570,15 @@ function drawAttachments() {
 
 async function addPickedFiles(fileList) {
   const f = state.files; const err = $('b-error'); err.hidden = true;
-  const current = () => f.existing.filter((x) => !f.remove.includes(x.id)).length + f.add.length;
+  const pending = () => f.add.reduce((n, x) => n + x.data.length, 0);
   for (const file of fileList) {
-    if (current() >= MAX_FILES) { err.textContent = `You can attach up to ${MAX_FILES} files.`; err.hidden = false; break; }
-    try { f.add.push(await prepareFile(file)); } catch (x) { err.textContent = x.message; err.hidden = false; }
+    try {
+      const p = await prepareFile(file);
+      if (pending() + p.data.length > MAX_SAVE_BYTES) {
+        err.textContent = 'Too many large files for one save. Save this booking now, then edit it to add the rest.'; err.hidden = false; break;
+      }
+      f.add.push(p);
+    } catch (x) { err.textContent = x.message; err.hidden = false; }
   }
   $('b-files').value = '';
   drawAttachments();

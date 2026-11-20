@@ -16,7 +16,7 @@ A shared **lorry booking calendar** with **several separate calendars** (DIM, TG
 
 | Who | Can do |
 |---|---|
-| **Staff (one or several calendars)** | Log in with **email + password**. Opens into their own calendar; if they were given several, a switcher shows just those (they cannot see any other). Add a booking: pick the **company** from that calendar's list, **one date**, a **time slot** (when the admin has set any), **type of delivery** (Delivery stock / Container pull / Unloading), **type of vehicle** (Van or Truck; **type of truck** only appears, and is required, when Truck is chosen), **number of vehicles (1-6)**, whether the cargo is **palletized**, an optional **plate number**, optional notes and up to 5 attachments. View every booking in their calendar. Edit/delete **only bookings they made**. Change their own password. |
+| **Staff (one or several calendars)** | Log in with **email + password**. Opens into their own calendar; if they were given several, a switcher shows just those (they cannot see any other). Add a booking: pick the **company** from that calendar's list, **one date**, a **time slot** (when the admin has set any), **type of delivery** (Delivery stock / Container pull / Unloading), **type of vehicle** (Van or Truck; **type of truck** only appears, and is required, when Truck is chosen), **number of vehicles (1-6)**, whether the cargo is **palletized**, an optional **plate number**, optional notes and as many attachments as needed. View every booking in their calendar. Edit/delete **only bookings they made**. Change their own password. |
 | **Administrator** | Everything above in **every** calendar (switcher buttons DIM / TG / NF / PME in the header; links like `#tg` open a calendar directly), plus: edit/delete **any** booking; **Calendars** (add / archive calendars); **Companies** (each calendar's company list and colours); **Users** (staff accounts and which calendar each uses); per calendar: **Blocked dates**, **Time slots**, **Email alerts**; and the global **Retention** setting. |
 | **Calendar administrator** (role `cadmin`) | Runs **only the calendars listed on their profile** (one or several, e.g. TG YFM + TG MMS; switcher buttons show just those). In those calendars: everything Staff can do, plus edit/delete **any** booking, **Companies**, **Time slots**, **Blocked dates** and **Email alerts**. They **cannot**: add or archive calendars, open **Users** (create accounts, change roles), change **Retention**, or see any other calendar. Set by a full Administrator under Users. |
 | *Old company account (role `user`)* | *Before go-live only: today's username logins, one per company. They are suspended by the go-live move (7.9) and replaced by staff accounts.* |
@@ -37,7 +37,7 @@ Key behaviours:
 - **Live sync:** when anyone adds/changes a booking, everyone else sees it within seconds, no refresh.
 - **Conflict protection:** if two people edit the same booking, the second save is refused with a "Load latest version" message instead of overwriting.
 - **History** tab lists past bookings. Moving the calendar forward never deletes data.
-- **Attachments:** pictures, PDF, Word/Excel, CSV/TXT. Max 5 per booking. Pictures are shrunk automatically in the browser; other files must be under **600 KB** each.
+- **Attachments:** pictures, PDF, Word/Excel, CSV/TXT. No limit on how many per booking (one save carries up to about 8 MB of files; add more by editing). Pictures are shrunk automatically in the browser; other files must be under **600 KB** each.
 
 ---
 
@@ -193,7 +193,7 @@ The rules in `firestore.rules` are the real protection. Summary:
 - Only an **active** user (profile status `active`) can read bookings, attachments and settings. Pending/suspended/profile-less users see nothing.
 - A user can create a booking only with their own UID and **their own company name**; admins may set another company.
 - Only the booking's creator or an admin can edit/delete it or its attachments. Creation info cannot be altered.
-- Booking fields are validated (date format, truck type list, count 1-6, max 5 attachments, size limits).
+- Booking fields are validated (date format, truck type list, count 1-6, size limits, no limit on attachment count).
 - Only admins create/rename/delete users and write usernames/settings. Admins cannot delete themselves.
 - **Calendars:** `canUse(cal)` = an admin, or an active **calendar administrator** whose profile `calendars` list has that code, or an active **staff** member whose profile `calendar` is that code (calendar not archived for the last two). `canManage(cal)` = an admin or that calendar's calendar administrator; it gates writes to companies, time slots, blocked dates, email recipients and to other people's bookings. Adding calendars, users and retention stay admin-only. Everything under `calendars/{cal}/` needs it. Staff cannot change their own calendar, role or status.
 - **Company on a booking** must be an **active company of the same calendar**, and `eventName` must equal its name, so nobody can book for another calendar's company or invent one.
@@ -354,7 +354,7 @@ Notes for Windows: run npm from **PowerShell or CMD**. In Git Bash `npm run ...`
 | Calendar empty/forever "Loading", console shows "requires an index" | The `bookings` index is missing or still **Building** (8.1 step 7). |
 | "Missing or insufficient permissions" | Rules not published, or the user is not `active`, or they tried to edit someone else's booking. |
 | Save says "The server did not confirm the save" | Offline/blocked connection. Nothing was saved; retry. |
-| Attachment rejected | Over 600 KB (non-picture), wrong type, or more than 5 files. |
+| Attachment rejected | Over 600 KB (non-picture), wrong type, or more than about 8 MB of files in one save (save, then edit to add the rest). |
 | Deploy workflow fails | Open the failed run in GitHub -> Actions. Check the six `VITE_FIREBASE_*` **Variables** exist, and that tests pass. |
 | Emails do not arrive | In script.google.com open the mailer project -> Executions: look for errors. `Firestore 403` = the owner account lacks access or the Cloud Firestore API is off for project `dynamic-booking-calendar` (Google Cloud Console -> APIs). Also check Spam, that the address is listed under Email alerts for that company, that the type is ticked, and that the timer exists (Triggers: `checkAll`, every 5 minutes; re-run `setup`). |
 | Staff see "No calendar assigned" | Their profile has no calendar, or the calendar is archived. Users -> Change calendar (or restore the calendar). |

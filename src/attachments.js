@@ -1,7 +1,9 @@
 // Attachments are stored in Firestore (bookings/{id}/attachments/{attId}) because Firebase Storage
 // needs a paid plan. A Firestore document is limited to 1 MiB, so each file is capped at
 // MAX_BYTES (base64 inflates by ~33%). Photos are shrunk in the browser to fit.
-export const MAX_FILES = 5;
+// No limit on how many files a booking can have. One save is capped by Firestore's ~10 MB request size,
+// so the files added in a single save may total at most MAX_SAVE_BYTES (base64 text).
+export const MAX_SAVE_BYTES = 8 * 1024 * 1024;
 export const MAX_BYTES = 600 * 1024;
 export const ACCEPT = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt';
 
