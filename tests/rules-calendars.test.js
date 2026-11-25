@@ -223,6 +223,9 @@ function suite(label, rulesFile, { legacyOpen }) {
         await assertSucceeds(setDoc(doc(ctx('admin'), 'calendars/tg/settings', 'slots'), slots));
         await assertFails(setDoc(doc(ctx('tina'), 'calendars/tg/settings', 'slots'), { ...slots, updatedBy: 'tina' }));
         await assertFails(setDoc(doc(ctx('admin'), 'calendars/tg/settings', 'slots'), { ...slots, slots: 'x' }));
+        await assertSucceeds(setDoc(doc(ctx('admin'), 'calendars/tg/settings', 'slots'), { ...slots, maxPerSlot: 4, limits: { '08:00-10:00': 2 } }));
+        await assertFails(setDoc(doc(ctx('admin'), 'calendars/tg/settings', 'slots'), { ...slots, maxPerSlot: 0 }));
+        await assertFails(setDoc(doc(ctx('admin'), 'calendars/tg/settings', 'slots'), { ...slots, maxPerSlot: '4' }));
         await assertSucceeds(getDoc(doc(ctx('tina'), 'calendars/tg/settings', 'slots')));
         await assertFails(getDoc(doc(ctx('dora'), 'calendars/tg/settings', 'slots')));
         const n = { onNew: true, dayBefore: true, twoHours: false, dayBeforeHour: 17, updatedBy: 'admin', updatedAt: serverTimestamp() };

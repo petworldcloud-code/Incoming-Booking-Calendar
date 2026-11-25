@@ -314,6 +314,10 @@
     <form id="form-slots" method="dialog">
       <h3>Booking time slots</h3>
       <p class="meta">Companies must pick one of these times when they book. Remove them all to turn time slots off (bookings then only have a date). Changing the list does not change bookings that already exist.</p>
+      <label class="sl-maxrow">Vehicles per slot (loading bay capacity)
+        <input id="sl-max" type="number" min="1" max="99" step="1" inputmode="numeric" placeholder="No limit">
+      </label>
+      <p class="meta">The most lorries and vans one slot takes; a booking for 3 vehicles uses 3. Staff cannot book a full slot; administrators get a warning and can still book. To give one slot a different number, type it in the small box beside that slot. Leave empty for no limit.</p>
       <ul id="sl-list" class="slotlist" aria-label="Current time slots"></ul>
       <div class="row3">
         <label>From <input id="sl-from" type="time" value="08:00" step="300"></label>

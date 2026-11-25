@@ -124,9 +124,12 @@ service cloud.firestore {
     }
 
     function validSlots(d) {
-      return d.keys().hasOnly(['slots', 'updatedAt', 'updatedBy'])
+      return d.keys().hasOnly(['slots', 'maxPerSlot', 'limits', 'updatedAt', 'updatedBy'])
         && d.slots is list
         && d.slots.size() <= 24
+        // Loading bay capacity: most vehicles per slot (all slots), and a different number for single slots.
+        && (!('maxPerSlot' in d) || (d.maxPerSlot is int && d.maxPerSlot >= 1 && d.maxPerSlot <= 99))
+        && (!('limits' in d) || (d.limits is map && d.limits.size() <= 24))
         && d.updatedBy == request.auth.uid
         && d.updatedAt == request.time;
     }

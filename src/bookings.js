@@ -1,5 +1,5 @@
 import {
-  doc, query, where, orderBy, limit, onSnapshot, getDoc, writeBatch,
+  doc, query, where, orderBy, limit, onSnapshot, getDoc, getDocsFromServer, writeBatch,
   runTransaction, serverTimestamp, deleteField
 } from 'firebase/firestore';
 import { db } from './firebase.js';
@@ -39,6 +39,12 @@ export function watchList({ from, before, max = 50 }, cb, onError) {
     : [where('bookingDate', '>=', from), orderBy('bookingDate'), orderBy('createdAt')];
   const q = query(col(), ...cons, limit(max));
   return onSnapshot(q, (s) => cb(s.docs.map(toBooking)), onError);
+}
+
+/** All bookings on one date, read fresh from the server (used to check slot capacity just before saving). */
+export async function bookingsOn(dateISO) {
+  const s = await getDocsFromServer(query(col(), where('bookingDate', '==', dateISO)));
+  return s.docs.map(toBooking);
 }
 
 function withTimeout(p) {

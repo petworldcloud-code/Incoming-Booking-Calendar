@@ -43,6 +43,7 @@ let rows = [];
 const subs = new Set();
 const notify = () => subs.forEach((f) => f());
 let slots = ['08:00-09:00', '09:00-10:00', '10:00-11:00', '11:00-12:00'];
+let capacity = { maxPerSlot: 4, limits: {} };
 const slotSubs = new Set();
 const blocked = new Map([[addDays(todayISO(), 5), 'Public holiday'], [addDays(todayISO(), 6), 'Public holiday']]);
 const blockedSubs = new Set();
@@ -158,11 +159,12 @@ export const api = {
   getRetention: async () => ({ autoDeleteEnabled: false, retentionDays: 90 }),
   saveRetention: async () => {},
   watchSlots(cb) {
-    const run = () => cb([...slots]);
+    const run = () => cb([...slots], { maxPerSlot: capacity.maxPerSlot, limits: { ...capacity.limits } });
     slotSubs.add(run); run();
     return () => slotSubs.delete(run);
   },
-  async saveSlots(uid, list) { slots = [...list]; slotSubs.forEach((f) => f()); },
+  async saveSlots(uid, list, cap = {}) { slots = [...list]; capacity = { maxPerSlot: cap.maxPerSlot || null, limits: { ...(cap.limits || {}) } }; slotSubs.forEach((f) => f()); },
+  async bookingsOn(date) { return rows.filter((r) => inCal(r) && r.bookingDate === date).map((r) => ({ ...r })); },
   watchBlocked(cb) {
     const run = () => cb(new Map(blocked));
     blockedSubs.add(run); run();

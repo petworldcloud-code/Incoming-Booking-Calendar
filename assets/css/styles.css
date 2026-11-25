@@ -322,6 +322,8 @@ dialog label input, dialog label textarea, dialog label select { margin-top: 4px
 .ntcos .muted { grid-column: 1 / -1; }
 .slotlist { list-style: none; margin: 10px 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .slotlist li { display: flex; align-items: center; gap: 6px; background: var(--accent-soft); color: var(--accent-ink); border-radius: 999px; padding: 4px 6px 4px 12px; font-size: .86rem; font-weight: 650; }
+.slotlist .sl-limit { width: 3.6em; padding: 2px 4px; font-size: .82rem; text-align: center; border-radius: 6px; }
+.sl-maxrow input { max-width: 8em; }
 .slotlist li.muted { background: none; font-weight: 400; padding-left: 0; color: var(--muted); }
 .row3 { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end; margin: 6px 0; }
 details.gen { margin: 12px 0; padding: 10px 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; }

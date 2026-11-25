@@ -38,3 +38,37 @@ export function generateSlots(from, to, stepMin) {
   if (out.length > MAX_SLOTS) throw new Error(`That makes ${out.length} slots; the limit is ${MAX_SLOTS}. Use a longer slot length.`);
   return out;
 }
+
+// ---------- vehicles per slot (loading bay capacity) ----------
+// Stored on settings/slots as maxPerSlot (every slot, optional) and limits { "08:00-10:00": 3 } (one slot, optional).
+export const MAX_PER_SLOT = 99;
+const okLimit = (n) => Number.isInteger(n) && n >= 1 && n <= MAX_PER_SLOT;
+
+/** Read the stored capacity safely: { maxPerSlot: number|null, limits: { slot: number } } for the given slots only. */
+export function cleanCapacity(data, slots) {
+  const max = Number(data?.maxPerSlot);
+  const limits = {};
+  for (const s of slots || []) {
+    const n = Number(data?.limits?.[s]);
+    if (okLimit(n)) limits[s] = n;
+  }
+  return { maxPerSlot: okLimit(max) ? max : null, limits };
+}
+
+/** Parse an admin's typed limit: '' -> null (no limit); throws a readable error otherwise. */
+export function parseLimit(text) {
+  const t = String(text ?? '').trim();
+  if (!t) return null;
+  const n = Number(t);
+  if (!okLimit(n)) throw new Error(`Vehicles per slot must be a whole number from 1 to ${MAX_PER_SLOT}, or empty for no limit.`);
+  return n;
+}
+
+/** How many vehicles one slot takes, or null for no limit. */
+export const slotLimit = (slot, cap) => (slot ? (cap?.limits?.[slot] ?? cap?.maxPerSlot ?? null) : null);
+
+/** Vehicles already booked in one slot on one date (a booking counts its truckCount, at least 1). */
+export function slotUsed(bookings, date, slot, exceptId) {
+  return (bookings || []).filter((b) => b.bookingDate === date && b.timeSlot === slot && b.id !== exceptId)
+    .reduce((n, b) => n + (Number(b.truckCount) || 1), 0);
+}

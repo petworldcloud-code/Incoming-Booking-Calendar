@@ -2,7 +2,7 @@ import { api, DEMO, CONFIGURED } from './api.js';
 import { renderCalendar, h } from './calendar.js';
 import { prepareFile, base64ToBlobUrl, formatSize, MAX_SAVE_BYTES } from './attachments.js';
 import { vehicleOf, vehicleText, palletText, vehicleFields, vehicleProblem } from './booking-utils.js';
-import { slotLabel, slotStart, makeSlot, cleanSlots, generateSlots, MAX_SLOTS } from './slot-utils.js';
+import { slotLabel, slotStart, makeSlot, cleanSlots, generateSlots, MAX_SLOTS, MAX_PER_SLOT, slotLimit, slotUsed, parseLimit } from './slot-utils.js';
 import { scopeText, DEFAULT_NOTIFY } from './notify-utils.js';
 import {
   pickCalendar, visibleCalendars, calendarLabel, calendarName, canManageCalendar, adminCalendars, userCalendars, roleChange,
@@ -29,6 +29,10 @@ const state = {
   blocked: new Map(), // closed dates: "YYYY-MM-DD" -> reason
   slots: [], // time slots admins allow, e.g. "08:00-10:00" (empty = no time slots)
   draftSlots: [], // admin: list being edited in the Time slots dialog
+  slotCap: { maxPerSlot: null, limits: {} }, // most vehicles per slot (loading bay capacity)
+  draftCap: { maxPerSlot: null, limits: {} },
+  slotCurrent: null, // the edited booking's own slot (kept even if no longer offered)
+  overbook: '', // admin pressed Save on a full slot once: the same save again goes through
   recipients: [], // admin: email alert recipients
   notify: { ...DEFAULT_NOTIFY },
   editingEmail: null,
@@ -163,12 +167,14 @@ function startRange() {
   unRange?.();
   const start = rangeStart();
   const end = addDays(start, RANGE_DAYS - 1);
+  state.rangeFrom = start; state.rangeTo = end;
   $('loading').hidden = false;
   unRange = api.watchRange(start, end, (list) => {
     state.calBookings = list; remember(list);
     $('loading').hidden = true;
     drawCalendar();
     if (state.dayISO && $('dlg-day').open) drawDay();
+    if ($('dlg-booking').open) drawSlotOptions();
   }, (e) => { $('loading').hidden = true; toast(friendly(e), 'err'); });
   drawHeader();
   drawCalendar();
@@ -281,7 +287,10 @@ function startCalendarData() {
     }, () => {});
   }
   unSlots?.();
-  unSlots = api.watchSlots((list) => { state.slots = list; }, () => {});
+  unSlots = api.watchSlots((list, cap) => {
+    state.slots = list; state.slotCap = cap || { maxPerSlot: null, limits: {} };
+    if ($('dlg-booking').open) drawSlotOptions();
+  }, () => {});
   unBlocked?.();
   unBlocked = api.watchBlocked((map) => {
     state.blocked = map; drawCalendar();
@@ -302,7 +311,7 @@ function stopCalendarData() {
   unRange = unList = unSlots = unBlocked = unRecips = unNotify = unCos = null;
   state.companyList = [];
   state.recipients = []; state.notify = { ...DEFAULT_NOTIFY }; state.dayISO = null; state.editing = null; state.viewing = null;
-  state.calBookings = []; state.listBookings = []; state.known.clear(); state.slots = []; state.blocked = new Map();
+  state.calBookings = []; state.listBookings = []; state.known.clear(); state.slots = []; state.slotCap = { maxPerSlot: null, limits: {} }; state.blocked = new Map();
 }
 function stopApp() {
   stopCalendarData();
@@ -435,15 +444,59 @@ function checkBookingDate() {
 
 // ---------- time slot dropdown ----------
 function fillSlot(current) {
+  state.slotCurrent = current || null;
+  state.overbook = '';
+  drawSlotOptions(current || '');
+}
+
+/** Vehicles left in a slot on the form's date (null = no limit, or the date is outside the loaded range). */
+function slotRoom(slot, date = $('b-date').value) {
+  const max = slotLimit(slot, state.slotCap);
+  if (max == null || !date || !state.rangeFrom || date < state.rangeFrom || date > state.rangeTo) return null;
+  return { max, left: max - slotUsed(state.calBookings, date, slot, state.editing?.id) };
+}
+
+/** Slot dropdown with what is left in each slot; full slots cannot be picked by staff. */
+function drawSlotOptions(keep) {
   const list = state.slots;
   const sel = $('b-slot');
+  const value = keep ?? sel.value;
+  const current = state.slotCurrent;
   const retired = current && !list.includes(current); // slot was removed after this booking was made
+  const need = Number($('b-count').value) || 1;
   $('b-slot-label').hidden = !(list.length || current);
+  const opt = (s) => {
+    const room = slotRoom(s);
+    const max = slotLimit(s, state.slotCap);
+    let text = slotLabel(s);
+    if (room) text += room.left <= 0 ? ' · full' : ` · ${room.left} of ${room.max} left`;
+    else if (max != null) text += ` · max ${max}`;
+    const tooFull = room && room.left < need;
+    return h('option', { value: s, disabled: !!tooFull && !canManage() }, text);
+  };
   sel.replaceChildren(
     h('option', { value: '' }, 'Select…'),
-    ...list.map((s) => h('option', { value: s }, slotLabel(s))),
+    ...list.map(opt),
     retired ? h('option', { value: current }, `${slotLabel(current)} (no longer offered)`) : null);
-  sel.value = current || '';
+  sel.value = value;
+  if (sel.selectedIndex > 0 && sel.options[sel.selectedIndex].disabled) sel.value = '';
+}
+
+/** Check the slot against fresh server data just before saving. Returns an error message, or '' when it fits. */
+async function slotCapacityProblem(f) {
+  const max = slotLimit(f.timeSlot, state.slotCap);
+  if (max == null) return '';
+  const old = state.editing ? state.known.get(state.editing.id) : null;
+  if (old && old.bookingDate === f.bookingDate && old.timeSlot === f.timeSlot && f.truckCount <= (Number(old.truckCount) || 1)) return ''; // nothing added to this slot
+  let day;
+  try { day = await api.bookingsOn(f.bookingDate); } catch { day = state.calBookings; } // offline: use what is on screen
+  const used = slotUsed(day, f.bookingDate, f.timeSlot, state.editing?.id);
+  if (used + f.truckCount <= max) return '';
+  const left = Math.max(0, max - used);
+  const where = `The ${slotLabel(f.timeSlot)} slot on ${formatDisplay(f.bookingDate)} takes ${max} ${max === 1 ? 'vehicle' : 'vehicles'}`;
+  const have = used ? ` and ${used} ${used === 1 ? 'is' : 'are'} already booked` : '';
+  const tail = left ? `Only ${left} more can be booked there.` : 'It is full.';
+  return `${where}${have}. ${tail}`;
 }
 
 // ---------- booking details pop-up ----------
@@ -620,6 +673,13 @@ async function saveBooking(e) {
   if (problem) return fail(problem);
   const btn = $('b-save'); btn.disabled = true; btn.textContent = 'Saving…'; err.hidden = true;
   try {
+    if (f.timeSlot) {
+      const full = await slotCapacityProblem(f);
+      const key = `${f.bookingDate}|${f.timeSlot}|${f.truckCount}`;
+      if (full && !canManage()) { state.overbook = ''; drawSlotOptions(); return fail(`${full} Please choose another time slot or fewer vehicles.`); }
+      if (full && state.overbook !== key) { state.overbook = key; return fail(`${full} Press Save again to book it anyway.`); }
+    }
+    state.overbook = '';
     const { add, remove } = state.files;
     if (state.editing) await api.updateBooking(me(), state.editing.id, state.editing.expectedMs, f, { add, remove });
     else await api.createBooking(me(), f, add);
@@ -948,6 +1008,15 @@ function slotProblem(msg) { const e = $('sl-error'); e.textContent = msg; e.hidd
 
 function drawSlotDraft() {
   const items = state.draftSlots.map((s) => h('li', {}, slotLabel(s),
+    h('input', {
+      type: 'number', min: '1', max: String(MAX_PER_SLOT), step: '1', class: 'sl-limit', inputmode: 'numeric',
+      value: state.draftCap.limits[s] ? String(state.draftCap.limits[s]) : '',
+      placeholder: state.draftCap.maxPerSlot ? String(state.draftCap.maxPerSlot) : '∞',
+      title: 'Vehicles in this slot (empty = same as every slot)', 'aria-label': `Vehicles in ${slotLabel(s)}`,
+      onchange: (e) => {
+        try { const n = parseLimit(e.target.value); if (n) state.draftCap.limits[s] = n; else delete state.draftCap.limits[s]; slotProblem(''); } catch (x) { slotProblem(x.message); }
+      }
+    }),
     h('button', {
       type: 'button', class: 'icon danger-text', 'aria-label': `Remove ${slotLabel(s)}`,
       onclick: () => { state.draftSlots = state.draftSlots.filter((x) => x !== s); drawSlotDraft(); }
@@ -957,6 +1026,8 @@ function drawSlotDraft() {
 
 function openSlots() {
   state.draftSlots = [...state.slots];
+  state.draftCap = { maxPerSlot: state.slotCap.maxPerSlot, limits: { ...state.slotCap.limits } };
+  $('sl-max').value = state.draftCap.maxPerSlot ? String(state.draftCap.maxPerSlot) : '';
   slotProblem('');
   drawSlotDraft();
   $('dlg-slots').showModal();
@@ -993,6 +1064,8 @@ function wire() {
   $('form-booking').onsubmit = saveBooking;
   $('b-date').addEventListener('input', checkBookingDate);
   $('b-date').addEventListener('change', checkBookingDate);
+  for (const id of ['b-date', 'b-count']) $(id).addEventListener('change', () => { state.overbook = ''; drawSlotOptions(); });
+  $('b-slot').addEventListener('change', () => { state.overbook = ''; });
   // "Type of truck" only applies to trucks; choosing Van hides it and forgets the choice.
   $('b-vehicle').onchange = () => {
     const truck = $('b-vehicle').value === 'Truck';
@@ -1074,6 +1147,9 @@ function wire() {
   $('bl-close').onclick = () => $('dlg-blocked').close();
   $('form-blocked').onsubmit = addBlocked;
   $('sl-cancel').onclick = () => $('dlg-slots').close();
+  $('sl-max').onchange = () => {
+    try { state.draftCap.maxPerSlot = parseLimit($('sl-max').value); slotProblem(''); drawSlotDraft(); } catch (x) { slotProblem(x.message); }
+  };
   $('sl-add').onclick = () => changeSlotDraft(() => [...state.draftSlots, makeSlot($('sl-from').value, $('sl-to').value)]);
   $('sg-go').onclick = () => changeSlotDraft(() => generateSlots($('sg-from').value, $('sg-to').value, $('sg-step').value));
   for (const [ids, btn] of [[['sl-from', 'sl-to'], 'sl-add'], [['sg-from', 'sg-to'], 'sg-go']]) {
@@ -1083,7 +1159,9 @@ function wire() {
     e.preventDefault();
     const btn = $('sl-save'); btn.disabled = true; btn.textContent = 'Saving…'; slotProblem('');
     try {
-      await api.saveSlots(state.session.user.uid, state.draftSlots);
+      state.draftCap.maxPerSlot = parseLimit($('sl-max').value);
+      const limits = Object.fromEntries(Object.entries(state.draftCap.limits).filter(([s]) => state.draftSlots.includes(s)));
+      await api.saveSlots(state.session.user.uid, state.draftSlots, { maxPerSlot: state.draftCap.maxPerSlot, limits });
       $('dlg-slots').close(); toast(state.draftSlots.length ? 'Time slots saved.' : 'Time slots turned off.');
     } catch (x) { slotProblem(friendly(x)); } finally { btn.disabled = false; btn.textContent = 'Save'; }
   };
